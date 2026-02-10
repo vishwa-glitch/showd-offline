@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(npx expo:*)"
+    ]
+  }
+}
