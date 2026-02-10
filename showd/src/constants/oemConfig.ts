@@ -1,0 +1,185 @@
+import { Platform } from 'react-native';
+import * as Device from 'expo-device';
+
+export type OEMBrand =
+  | 'xiaomi'
+  | 'samsung'
+  | 'huawei'
+  | 'oneplus'
+  | 'oppo'
+  | 'vivo'
+  | 'realme'
+  | 'other';
+
+const PROBLEMATIC_OEMS = [
+  'xiaomi', 'redmi', 'poco',
+  'samsung',
+  'huawei', 'honor',
+  'oneplus',
+  'oppo',
+  'vivo', 'iqoo',
+  'realme',
+  'meizu',
+  'asus',
+  'lenovo',
+  'tecno', 'infinix',
+];
+
+export function getOEMBrand(): OEMBrand {
+  if (Platform.OS !== 'android') return 'other';
+  const brand = (Device.brand ?? '').toLowerCase();
+  if (['xiaomi', 'redmi', 'poco'].some((k) => brand.includes(k))) return 'xiaomi';
+  if (brand.includes('samsung')) return 'samsung';
+  if (['huawei', 'honor'].some((k) => brand.includes(k))) return 'huawei';
+  if (brand.includes('oneplus')) return 'oneplus';
+  if (brand.includes('oppo')) return 'oppo';
+  if (['vivo', 'iqoo'].some((k) => brand.includes(k))) return 'vivo';
+  if (brand.includes('realme')) return 'realme';
+  return 'other';
+}
+
+export function isProblematicOEM(): boolean {
+  if (Platform.OS !== 'android') return false;
+  const brand = (Device.brand ?? '').toLowerCase();
+  return PROBLEMATIC_OEMS.some((oem) => brand.includes(oem));
+}
+
+export function getOEMDisplayName(): string {
+  const brand = getOEMBrand();
+  const names: Record<OEMBrand, string> = {
+    xiaomi: 'Xiaomi',
+    samsung: 'Samsung',
+    huawei: 'Huawei',
+    oneplus: 'OnePlus',
+    oppo: 'Oppo',
+    vivo: 'Vivo',
+    realme: 'Realme',
+    other: (Device.brand ?? ''),
+  };
+  return names[brand];
+}
+
+export interface OEMStep {
+  title: string;
+  description: string;
+}
+
+export function getOEMInstructions(brand: OEMBrand): OEMStep[] {
+  switch (brand) {
+    case 'xiaomi':
+      return [
+        {
+          title: 'Turn on Autostart',
+          description: 'Find Showd in the app list and enable Autostart',
+        },
+        {
+          title: 'Set Battery to No Restrictions',
+          description: 'Go to Battery Saver \u2192 Showd \u2192 No restrictions',
+        },
+        {
+          title: 'Lock app in Recents',
+          description:
+            'Open Showd in recent apps, swipe down on it to lock it (you\'ll see a lock icon)',
+        },
+      ];
+    case 'samsung':
+      return [
+        {
+          title: 'Set Battery to Unrestricted',
+          description:
+            'Go to Battery \u2192 Background usage limits \u2192 Never sleeping apps \u2192 Add Showd',
+        },
+        {
+          title: 'Turn off Adaptive Battery for Showd',
+          description: 'Battery \u2192 Showd \u2192 Unrestricted',
+        },
+      ];
+    case 'huawei':
+      return [
+        {
+          title: 'Set App Launch to Manual',
+          description:
+            'Go to Battery \u2192 App Launch \u2192 Find Showd \u2192 Set to "Manage manually"',
+        },
+        {
+          title: 'Enable all three toggles',
+          description:
+            'Turn on Auto-launch, Secondary launch, and Run in background',
+        },
+      ];
+    case 'oneplus':
+      return [
+        {
+          title: 'Disable Battery Optimization',
+          description:
+            'Go to Battery \u2192 Battery Optimization \u2192 Showd \u2192 Don\'t optimize',
+        },
+        {
+          title: 'Enable Auto-launch',
+          description:
+            'Settings \u2192 Apps \u2192 Showd \u2192 Auto-launch \u2192 Enable',
+        },
+      ];
+    case 'oppo':
+      return [
+        {
+          title: 'Enable Auto-startup',
+          description:
+            'Settings \u2192 App Management \u2192 Showd \u2192 Auto-startup \u2192 Enable',
+        },
+        {
+          title: 'Allow Background Running',
+          description: 'Battery \u2192 Showd \u2192 Allow background activity',
+        },
+      ];
+    case 'vivo':
+      return [
+        {
+          title: 'Enable Autostart',
+          description:
+            'Settings \u2192 More Settings \u2192 Applications \u2192 Autostart \u2192 Enable Showd',
+        },
+        {
+          title: 'Allow High Background Power',
+          description:
+            'Battery \u2192 High background power consumption \u2192 Enable Showd',
+        },
+      ];
+    case 'realme':
+      return [
+        {
+          title: 'Enable Auto-startup',
+          description:
+            'Settings \u2192 App Management \u2192 Showd \u2192 Auto-startup \u2192 Enable',
+        },
+        {
+          title: 'Allow Background Activity',
+          description: 'Battery \u2192 Showd \u2192 Allow background activity',
+        },
+      ];
+    default:
+      return [
+        {
+          title: 'Disable Battery Optimization',
+          description:
+            'Go to Settings \u2192 Battery \u2192 Showd \u2192 Don\'t optimize / Unrestricted',
+        },
+        {
+          title: 'Allow Background Activity',
+          description:
+            'Make sure Showd is allowed to run in the background',
+        },
+      ];
+  }
+}
+
+export function getOEMBatterySettingsIntent(brand: OEMBrand): string | null {
+  const intents: Partial<Record<OEMBrand, string>> = {
+    xiaomi: 'miui.intent.action.HIDDEN_APPS_CONFIG_ACTIVITY',
+    samsung: 'android.settings.APP_BATTERY_SETTINGS',
+    huawei: 'huawei.intent.action.HSM_BOOTAPP_MANAGER',
+    oppo: 'com.coloros.safecenter',
+    vivo: 'com.vivo.permissionmanager',
+  };
+  return intents[brand] ?? null;
+}

@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "showd",
+    "slug": "showd",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FBF8F6"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.showd.app"
+    },
+    "android": {
+      "package": "com.showd.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "USE_FULL_SCREEN_INTENT",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 34,
+            "minSdkVersion": 24
+          }
+        }
+      ],
+      "./plugins/withNotifee.js"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9424b8b6-df21-45be-b34b-e2fbf3fce4ab"
+      }
+    },
+    "owner": "vishwa567"
+  }
+}
