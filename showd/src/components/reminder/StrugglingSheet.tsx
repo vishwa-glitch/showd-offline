@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -51,6 +51,7 @@ export function StrugglingSheet() {
   const dismissReminder = useDismissReminder();
   const abandonTimer = useAbandonTimer();
   const struggleTask = useStruggleTask();
+  const scrollRef = useRef<ScrollView>(null);
 
   const handleSelect = useCallback((reason: Reason) => {
     setSelectedReason(reason);
@@ -101,7 +102,7 @@ export function StrugglingSheet() {
   return (
     <Animated.View style={styles.overlay} entering={FadeInUp.duration(400)}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
         <View style={styles.sheet}>
@@ -118,8 +119,10 @@ export function StrugglingSheet() {
           </TouchableOpacity>
 
           <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Heading */}
             <Text style={styles.heading}>That's okay. Let's log it.</Text>
@@ -162,6 +165,9 @@ export function StrugglingSheet() {
                 multiline
                 maxLength={200}
                 autoFocus
+                onFocus={() => {
+                  setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+                }}
               />
             )}
 
@@ -197,7 +203,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    height: SHEET_HEIGHT,
+    maxHeight: SHEET_HEIGHT,
     backgroundColor: Colors.surface,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,

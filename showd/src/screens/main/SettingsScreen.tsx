@@ -11,10 +11,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
-import { Typography } from '../../utils/typography';
+import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
-import { useUser, useIsGuest, useSignOut } from '../../store/authStore';
+import { useUser, useIsGuest, useSignOut, useSignIn } from '../../store/authStore';
+import { useConnections, useHydrateWitnesses } from '../../store/witnessStore';
+import { useHydrateTasks } from '../../store/taskStore';
 import { ReminderHealthCheck } from '../../components/permissions/ReminderHealthCheck';
+import { generateMockData } from '../../utils/mockData';
+import type { SettingsScreenProps } from '../../types/navigation';
 
 interface SettingRowProps {
   icon: keyof typeof Feather.glyphMap;
@@ -67,10 +71,17 @@ function SettingRow({
   );
 }
 
-export function SettingsScreen() {
+export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const user = useUser();
   const isGuest = useIsGuest();
   const signOut = useSignOut();
+  const signIn = useSignIn();
+  const hydrateTasks = useHydrateTasks();
+  const hydrateWitnesses = useHydrateWitnesses();
+  const connections = useConnections();
+  const activeWitnessCount = connections.filter(
+    (c) => c.status === 'active' || c.status === 'invited',
+  ).length;
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -95,6 +106,27 @@ export function SettingsScreen() {
           onPress: signOut,
         },
       ]
+    );
+  };
+
+  const handleResetDemoData = () => {
+    Alert.alert(
+      'Reset Demo Data',
+      'This will replace all tasks, events, and witnesses with fresh demo data.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => {
+            const mock = generateMockData();
+            signIn(mock.user);
+            hydrateTasks(mock.tasks, mock.events);
+            hydrateWitnesses(mock.connections);
+            Alert.alert('Done', 'Demo data has been reset.');
+          },
+        },
+      ],
     );
   };
 
@@ -187,7 +219,8 @@ export function SettingsScreen() {
           <SettingRow
             icon="users"
             label="My witnesses"
-            onPress={comingSoon}
+            value={activeWitnessCount > 0 ? `${activeWitnessCount}` : undefined}
+            onPress={() => navigation.navigate('MyWitnesses')}
           />
           <View style={styles.divider} />
           <SettingRow
@@ -231,6 +264,20 @@ export function SettingsScreen() {
             showChevron={false}
           />
         </View>
+
+        {/* Demo Mode */}
+        <Text style={styles.sectionTitle}>Demo Mode</Text>
+        <View style={styles.section}>
+          <SettingRow
+            icon="refresh-cw"
+            label="Reset Demo Data"
+            onPress={handleResetDemoData}
+            showChevron={false}
+          />
+        </View>
+        <Text style={styles.demoHint}>
+          Running in demo mode — no cloud sync, no real SMS.
+        </Text>
 
         {/* Danger Zone */}
         <Text style={styles.sectionTitle}>Danger Zone</Text>
@@ -313,5 +360,12 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginLeft: 52,
+  },
+  demoHint: {
+    fontFamily: FontFamily.regular,
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: Spacing.sm,
+    textAlign: 'center',
   },
 });

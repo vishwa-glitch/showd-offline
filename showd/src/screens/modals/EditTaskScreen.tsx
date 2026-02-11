@@ -6,8 +6,15 @@ import { Colors } from '../../utils/colors';
 import { Typography } from '../../utils/typography';
 import { Spacing } from '../../utils/spacing';
 import { TaskForm } from '../../components/task/TaskForm';
+import { useUser } from '../../store/authStore';
 import { useGetTaskById, useUpdateTask, useDeleteTask } from '../../store/taskStore';
+import {
+  useCreateConnection,
+  useRemoveConnectionsByTaskId,
+  useGetConnectionByTaskId,
+} from '../../store/witnessStore';
 import { cancelTaskReminder, scheduleTaskReminder } from '../../services/notifications';
+import { sendWitnessInviteSMS } from '../../services/witness';
 import type { EditTaskScreenProps } from '../../types/navigation';
 import type { TaskFormData } from '../../types/task';
 
@@ -16,6 +23,10 @@ export function EditTaskScreen({ navigation, route }: EditTaskScreenProps) {
   const getTaskById = useGetTaskById();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const user = useUser();
+  const createConnection = useCreateConnection();
+  const removeConnectionsByTaskId = useRemoveConnectionsByTaskId();
+  const getConnectionByTaskId = useGetConnectionByTaskId();
   const task = getTaskById(taskId);
 
   if (!task) {
@@ -62,6 +73,41 @@ export function EditTaskScreen({ navigation, route }: EditTaskScreenProps) {
       witnessRelationship: formData.witnessRelationship || undefined,
       personalWitnessName: formData.personalWitnessName || undefined,
     });
+    // Handle witness connection changes
+    const wasReal = task.accountabilityType === 'real';
+    const isNowReal = formData.accountabilityType === 'real';
+
+    if (wasReal && !isNowReal) {
+      // Switching away from real accountability — remove connections
+      removeConnectionsByTaskId(taskId);
+      updateTask(taskId, { witnessConnectionId: undefined });
+    } else if (isNowReal && formData.witnessPhone && formData.witnessName) {
+      const existingConnection = getConnectionByTaskId(taskId);
+      const phoneChanged = existingConnection?.witnessPhone !== formData.witnessPhone;
+      const nameChanged = existingConnection?.witnessName !== formData.witnessName;
+
+      if (!existingConnection || phoneChanged || nameChanged) {
+        if (existingConnection) removeConnectionsByTaskId(taskId);
+        const connection = createConnection({
+          taskId,
+          taskDoerId: user?.id || 'guest',
+          taskDoerName: user?.name || 'Guest',
+          witnessPhone: formData.witnessPhone,
+          witnessName: formData.witnessName,
+          witnessRelationship: formData.witnessRelationship || undefined,
+        });
+        updateTask(taskId, { witnessConnectionId: connection.id });
+        sendWitnessInviteSMS({
+          connectionId: connection.id,
+          witnessPhone: formData.witnessPhone,
+          witnessName: formData.witnessName,
+          taskDoerName: user?.name || 'Guest',
+          taskName: formData.name,
+          inviteToken: connection.inviteToken,
+        });
+      }
+    }
+
     // Reschedule notification with updated task data
     const updatedTask = getTaskById(taskId);
     if (updatedTask) {
@@ -81,6 +127,7 @@ export function EditTaskScreen({ navigation, route }: EditTaskScreenProps) {
           style: 'destructive',
           onPress: () => {
             cancelTaskReminder(taskId).catch(() => {});
+            removeConnectionsByTaskId(taskId);
             deleteTask(taskId);
             navigation.popToTop();
           },
@@ -106,6 +153,8 @@ export function EditTaskScreen({ navigation, route }: EditTaskScreenProps) {
         initialData={initialData}
         onSubmit={handleSubmit}
         submitLabel="Save Changes"
+        userPhone={user?.phone}
+        userName={user?.name}
       />
     </SafeAreaView>
   );

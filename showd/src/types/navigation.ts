@@ -8,7 +8,7 @@ export type AuthStackParamList = {
   Onboarding: undefined;
   PhoneInput: undefined;
   OTPVerify: { phoneNumber: string };
-  ProfileSetup: undefined;
+  ProfileSetup: { phone: string };
   PermissionSetup: { user: User };
   OEMBatterySetup: { user: User };
 };
@@ -25,6 +25,7 @@ export type RootStackParamList = {
   EditTask: { taskId: string };
   TaskDetail: { taskId: string };
   FocusTimer: { taskId: string; taskEventId: string };
+  MyWitnesses: undefined;
 };
 
 // Screen prop types
@@ -41,9 +42,13 @@ export type TodayScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 export type ProgressScreenProps = BottomTabScreenProps<MainTabParamList, 'Progress'>;
-export type SettingsScreenProps = BottomTabScreenProps<MainTabParamList, 'Settings'>;
+export type SettingsScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Settings'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
 export type CreateTaskScreenProps = NativeStackScreenProps<RootStackParamList, 'CreateTask'>;
 export type EditTaskScreenProps = NativeStackScreenProps<RootStackParamList, 'EditTask'>;
 export type TaskDetailScreenProps = NativeStackScreenProps<RootStackParamList, 'TaskDetail'>;
 export type FocusTimerScreenProps = NativeStackScreenProps<RootStackParamList, 'FocusTimer'>;
+export type MyWitnessesScreenProps = NativeStackScreenProps<RootStackParamList, 'MyWitnesses'>;

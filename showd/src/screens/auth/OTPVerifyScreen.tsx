@@ -1,3 +1,8 @@
+// ============================================
+// DEMO MODE: Supabase OTP verification commented out.
+// Any 6-digit code is accepted for demo.
+// Search for [SUPABASE-TODO] to restore.
+// ============================================
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -13,6 +18,11 @@ import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
 import { Button } from '../../components/ui/Button';
+// [SUPABASE-TODO] Restore real OTP verification:
+// import { supabase } from '../../services/supabase';
+// import { getUser } from '../../services/database';
+// import { dbToUser } from '../../utils/mappers';
+// import { useSignIn } from '../../store/authStore';
 import type { OTPVerifyScreenProps } from '../../types/navigation';
 
 const CODE_LENGTH = 6;
@@ -24,6 +34,7 @@ export function OTPVerifyScreen({ navigation, route }: OTPVerifyScreenProps) {
   const [error, setError] = useState('');
   const [resendTimer, setResendTimer] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  // [SUPABASE-TODO] Restore: const signIn = useSignIn();
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -72,19 +83,36 @@ export function OTPVerifyScreen({ navigation, route }: OTPVerifyScreenProps) {
     }
   };
 
-  const handleVerify = (fullCode?: string) => {
+  const handleVerify = async (fullCode?: string) => {
+    const token = fullCode || code.join('');
+    if (token.length !== CODE_LENGTH) return;
+
     setLoading(true);
-    // Mock: any 6-digit code works
-    setTimeout(() => {
-      setLoading(false);
-      navigation.navigate('ProfileSetup');
-    }, 800);
+    // [SUPABASE-TODO] Restore real OTP verification:
+    // const { data, error: verifyError } = await supabase.auth.verifyOtp({
+    //   phone: phoneNumber, token, type: 'sms',
+    // });
+    // if (verifyError) { setError(verifyError.message); setLoading(false); return; }
+    // const userId = data.user?.id;
+    // if (userId) {
+    //   const { data: existing } = await getUser(userId);
+    //   if (existing) { signIn(dbToUser(existing)); setLoading(false); return; }
+    // }
+    await new Promise((r) => setTimeout(r, 800)); // simulate verification
+    setLoading(false);
+
+    // Demo: any 6-digit code is accepted — proceed to profile setup
+    navigation.navigate('ProfileSetup', { phone: phoneNumber });
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setResendTimer(30);
     setCode(Array(CODE_LENGTH).fill(''));
     inputRefs.current[0]?.focus();
+    // [SUPABASE-TODO] Restore:
+    // const { error: resendError } = await supabase.auth.signInWithOtp({ phone: phoneNumber });
+    // if (resendError) { Alert.alert('Error', resendError.message); }
+    console.log('[DEMO] Would resend OTP to', phoneNumber);
   };
 
   return (

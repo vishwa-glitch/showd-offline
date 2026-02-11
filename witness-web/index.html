@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Showd — Witness Invite</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container" id="app">
+    <!-- Loading State (default) -->
+    <div class="state" id="state-loading">
+      <div class="spinner"></div>
+      <p class="loading-text">Loading invite...</p>
+    </div>
+
+    <!-- Invite State -->
+    <div class="state hidden" id="state-invite">
+      <div class="logo">S</div>
+      <h1 class="title">You've been chosen!</h1>
+      <p class="subtitle">
+        <span id="doer-name" class="highlight"></span> picked you to help them
+        stay on track with <span id="task-name" class="highlight"></span>.
+      </p>
+
+      <div class="card">
+        <h2 class="card-title">What does a Witness do?</h2>
+        <ul class="card-list">
+          <li>Get notified if they miss a day</li>
+          <li>See when they're struggling</li>
+          <li>Send a nudge of encouragement</li>
+        </ul>
+        <p class="card-note">You won't need to download the app.</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="btn-accept">I'll Be Their Witness</button>
+        <button class="btn btn-secondary" id="btn-decline">Not Right Now</button>
+      </div>
+    </div>
+
+    <!-- Accepted State -->
+    <div class="state hidden" id="state-accepted">
+      <div class="icon-circle icon-success">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <h1 class="title">You're in!</h1>
+      <p class="subtitle">
+        <span id="accepted-doer" class="highlight"></span> will be so glad to
+        have you in their corner. You'll get updates via SMS.
+      </p>
+      <p class="footer-note">You can reply STOP to any text to opt out.</p>
+    </div>
+
+    <!-- Declined State -->
+    <div class="state hidden" id="state-declined">
+      <div class="icon-circle icon-neutral">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+      </div>
+      <h1 class="title">No worries!</h1>
+      <p class="subtitle">
+        We'll let <span id="declined-doer" class="highlight"></span> know.
+        You won't receive any messages.
+      </p>
+    </div>
+
+    <!-- Invalid / Expired State -->
+    <div class="state hidden" id="state-invalid">
+      <div class="icon-circle icon-warning">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <h1 class="title">Link not found</h1>
+      <p class="subtitle">
+        This invite link is invalid or has expired.
+        Ask your friend to resend it from the Showd app.
+      </p>
+    </div>
+  </div>
+
+  <footer class="page-footer">
+    <p>Showd — accountability that works</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

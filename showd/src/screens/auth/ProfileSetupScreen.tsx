@@ -1,3 +1,8 @@
+// ============================================
+// DEMO MODE: Supabase user creation commented out.
+// Using local UUID for demo.
+// Search for [SUPABASE-TODO] to restore.
+// ============================================
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,18 +12,27 @@ import { Typography } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+// [SUPABASE-TODO] Restore:
+// import { supabase } from '../../services/supabase';
+// import { upsertUser } from '../../services/database';
 import type { ProfileSetupScreenProps } from '../../types/navigation';
 
-export function ProfileSetupScreen({ navigation }: ProfileSetupScreenProps) {
+export function ProfileSetupScreen({ navigation, route }: ProfileSetupScreenProps) {
+  const { phone } = route.params;
   const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const isValid = name.trim().length >= 2;
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    setLoading(true);
+    // [SUPABASE-TODO] Restore real user creation:
+    // const { data: { user: authUser } } = await supabase.auth.getUser();
+    // const userId = authUser?.id || `user_${Date.now()}`;
     const now = new Date().toISOString();
     const user = {
       id: `user_${Date.now()}`,
-      phone: '+1234567890',
+      phone,
       name: name.trim(),
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       quietHoursEnabled: false,
@@ -27,6 +41,9 @@ export function ProfileSetupScreen({ navigation }: ProfileSetupScreenProps) {
       createdAt: now,
       updatedAt: now,
     };
+    // [SUPABASE-TODO] Restore: await upsertUser(user).catch(() => {});
+    await new Promise((r) => setTimeout(r, 400)); // simulate save
+    setLoading(false);
     navigation.navigate('PermissionSetup', { user });
   };
 
@@ -63,6 +80,7 @@ export function ProfileSetupScreen({ navigation }: ProfileSetupScreenProps) {
           label="Start Using Showd"
           onPress={handleStart}
           disabled={!isValid}
+          loading={loading}
           fullWidth
         />
       </View>

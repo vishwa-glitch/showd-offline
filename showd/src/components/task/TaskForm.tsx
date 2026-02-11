@@ -24,6 +24,7 @@ import {
   TASK_CATEGORIES,
   DEFAULT_FORM_DATA,
 } from '../../types/task';
+import { getInviteSMSPreview, validateWitnessPhone } from '../../services/witness';
 
 const CATEGORY_COLORS: Record<TaskCategory, string> = {
   medication: Colors.categoryMedication,
@@ -43,16 +44,29 @@ const FREQUENCY_OPTIONS: { key: TaskFrequency; label: string }[] = [
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+const RELATIONSHIP_OPTIONS = [
+  { key: 'friend', label: 'Friend' },
+  { key: 'family', label: 'Family' },
+  { key: 'partner', label: 'Partner' },
+  { key: 'coworker', label: 'Coworker' },
+  { key: 'coach', label: 'Coach' },
+  { key: 'other', label: 'Other' },
+] as const;
+
 interface TaskFormProps {
   initialData?: Partial<TaskFormData>;
   onSubmit: (data: TaskFormData) => void;
   submitLabel: string;
+  userPhone?: string;
+  userName?: string;
 }
 
 export function TaskForm({
   initialData,
   onSubmit,
   submitLabel,
+  userPhone,
+  userName,
 }: TaskFormProps) {
   const [form, setForm] = useState<TaskFormData>({
     ...DEFAULT_FORM_DATA,
@@ -64,7 +78,18 @@ export function TaskForm({
     setForm((prev) => ({ ...prev, ...updates }));
   };
 
-  const isValid = form.name.trim().length > 0 && form.category !== null;
+  const phoneError =
+    form.accountabilityType === 'real' && form.witnessPhone
+      ? validateWitnessPhone(form.witnessPhone, userPhone || '')
+      : undefined;
+
+  const isValid =
+    form.name.trim().length > 0 &&
+    form.category !== null &&
+    (form.accountabilityType !== 'real' ||
+      (form.witnessPhone.trim().length > 0 &&
+        form.witnessName.trim().length > 0 &&
+        !phoneError));
 
   const timeDate = (() => {
     const [h, m] = form.reminderTime.split(':').map(Number);
@@ -233,6 +258,9 @@ export function TaskForm({
             ]}
             onPress={() => updateForm({ accountabilityType: 'real' })}
           >
+            <View style={styles.recommendedBadge}>
+              <Text style={styles.recommendedBadgeText}>Recommended</Text>
+            </View>
             <Feather name="users" size={24} color={form.accountabilityType === 'real' ? Colors.primary : Colors.textTertiary} />
             <Text style={[styles.accountabilityTitle, form.accountabilityType === 'real' && styles.accountabilityTitleSelected]}>
               Real Accountability
@@ -267,6 +295,7 @@ export function TaskForm({
               value={form.witnessPhone}
               onChangeText={(witnessPhone) => updateForm({ witnessPhone })}
               keyboardType="phone-pad"
+              error={phoneError || undefined}
             />
             <Input
               label="Witness name"
@@ -274,6 +303,34 @@ export function TaskForm({
               value={form.witnessName}
               onChangeText={(witnessName) => updateForm({ witnessName })}
             />
+            <Text style={[styles.sectionTitle, { marginTop: Spacing.sm }]}>
+              Relationship (optional)
+            </Text>
+            <View style={styles.chipRow}>
+              {RELATIONSHIP_OPTIONS.map((opt) => (
+                <Chip
+                  key={opt.key}
+                  label={opt.label}
+                  selected={form.witnessRelationship === opt.key}
+                  onPress={() => updateForm({ witnessRelationship: opt.key })}
+                />
+              ))}
+            </View>
+            {form.witnessPhone.trim() !== '' && form.witnessName.trim() !== '' && (
+              <View style={styles.smsPreviewContainer}>
+                <View style={styles.smsPreviewHeader}>
+                  <Feather name="message-square" size={14} color={Colors.textTertiary} />
+                  <Text style={styles.smsPreviewLabel}>Preview: SMS they'll receive</Text>
+                </View>
+                <Text style={styles.smsPreviewText}>
+                  {getInviteSMSPreview({
+                    witnessName: form.witnessName,
+                    taskDoerName: userName || 'You',
+                    taskName: form.name || 'your task',
+                  })}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -406,6 +463,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     borderWidth: 2,
     borderColor: 'transparent',
+    overflow: 'visible',
   },
   accountabilityCardSelected: {
     borderColor: Colors.primary,
@@ -427,6 +485,42 @@ const styles = StyleSheet.create({
   },
   witnessInputs: {
     marginTop: Spacing.base,
+  },
+  recommendedBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    zIndex: 1,
+  },
+  recommendedBadgeText: {
+    ...Typography.caption,
+    color: Colors.surface,
+    fontSize: 10,
+  },
+  smsPreviewContainer: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.base,
+    marginTop: Spacing.md,
+  },
+  smsPreviewHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  smsPreviewLabel: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+  },
+  smsPreviewText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    fontStyle: 'italic' as const,
   },
   stepperRow: {
     flexDirection: 'row',

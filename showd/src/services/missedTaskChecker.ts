@@ -5,12 +5,15 @@ import type { Task, TaskEvent } from '../types/task';
  * A task is missed if:
  * 1. Its reminder time + (snoozeLimit * 15 min) grace period has passed today
  * 2. No event (done/struggled/missed) exists for today
+ * 3. The task is NOT currently showing as an active reminder or queued
  *
+ * @param skipTaskIds - Task IDs to skip (e.g. active/pending reminders)
  * Returns an array of taskIds that should be marked as missed.
  */
 export function getTasksToMarkMissed(
   tasks: Task[],
   events: TaskEvent[],
+  skipTaskIds?: ReadonlySet<string>,
 ): string[] {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -18,6 +21,9 @@ export function getTasksToMarkMissed(
 
   for (const task of tasks) {
     if (!task.isActive) continue;
+
+    // Skip tasks that are currently showing as reminders or queued
+    if (skipTaskIds?.has(task.id)) continue;
 
     // Check if this task should have fired today
     if (!shouldFireToday(task, now)) continue;

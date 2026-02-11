@@ -5,6 +5,7 @@ import { CreateTaskScreen } from '../screens/modals/CreateTaskScreen';
 import { EditTaskScreen } from '../screens/modals/EditTaskScreen';
 import { TaskDetailScreen } from '../screens/main/TaskDetailScreen';
 import { FocusTimerScreen } from '../screens/main/FocusTimerScreen';
+import { MyWitnessesScreen } from '../screens/main/MyWitnessesScreen';
 import { Colors } from '../utils/colors';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -52,6 +53,11 @@ export function RootStack() {
           gestureEnabled: false,
           contentStyle: { backgroundColor: 'rgba(15, 10, 20, 0.95)' },
         }}
+      />
+      <Stack.Screen
+        name="MyWitnesses"
+        component={MyWitnessesScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

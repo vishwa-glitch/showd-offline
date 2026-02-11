@@ -1,3 +1,7 @@
+// ============================================
+// DEMO MODE: Supabase auth listener commented out.
+// Search for [SUPABASE-TODO] to restore.
+// ============================================
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -21,8 +25,15 @@ import { useTriggerReminder } from './src/store/reminderStore';
 import { useMissedTaskChecker } from './src/hooks/useMissedTaskChecker';
 import { useTimerTick } from './src/hooks/useTimerTick';
 import { useAbandonedTimerDetector } from './src/hooks/useAbandonedTimerDetector';
+import { useWitnessNotifier } from './src/hooks/useWitnessNotifier';
+import { useSyncOnForeground } from './src/hooks/useSyncOnForeground';
 import { useRefreshAllPermissions } from './src/store/permissionStore';
 import { initializeTimerChannel } from './src/services/timerNotification';
+// [SUPABASE-TODO] Restore Supabase auth listener:
+// import { supabase } from './src/services/supabase';
+// import { useSignIn, useSignOut, useUser } from './src/store/authStore';
+// import { getUser } from './src/services/database';
+// import { dbToUser } from './src/utils/mappers';
 
 // Register background notification handler at module level (required by Notifee)
 registerBackgroundHandler(() => {
@@ -47,6 +58,27 @@ export default function App() {
   const refreshPermissions = useRefreshAllPermissions();
   const appStateRef = useRef(AppState.currentState);
 
+  // [SUPABASE-TODO] Restore Supabase auth state listener:
+  // const signIn = useSignIn();
+  // const signOut = useSignOut();
+  // const user = useUser();
+  // useEffect(() => {
+  //   const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  //     async (event, session) => {
+  //       if (event === 'SIGNED_OUT' || !session) {
+  //         if (user) signOut();
+  //       } else if (event === 'SIGNED_IN' && session?.user && !user) {
+  //         const { data: existing } = await getUser(session.user.id);
+  //         if (existing) signIn(dbToUser(existing));
+  //       }
+  //     },
+  //   );
+  //   return () => subscription.unsubscribe();
+  // }, [signIn, signOut, user]);
+
+  // No-op in demo mode
+  useSyncOnForeground();
+
   // Check for missed tasks periodically
   useMissedTaskChecker();
 
@@ -55,6 +87,9 @@ export default function App() {
 
   // Detect abandoned timers (paused >30 min)
   useAbandonedTimerDetector();
+
+  // Stub SMS to active witnesses on missed/struggled events
+  useWitnessNotifier();
 
   // Refresh permission states on mount and when app returns to foreground
   useEffect(() => {

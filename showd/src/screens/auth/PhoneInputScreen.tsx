@@ -1,3 +1,8 @@
+// ============================================
+// DEMO MODE: Supabase OTP commented out.
+// Using mock navigation for demo.
+// Search for [SUPABASE-TODO] to restore.
+// ============================================
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +12,7 @@ import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+// [SUPABASE-TODO] Restore: import { supabase } from '../../services/supabase';
 import type { PhoneInputScreenProps } from '../../types/navigation';
 
 export function PhoneInputScreen({ navigation }: PhoneInputScreenProps) {
@@ -16,15 +22,15 @@ export function PhoneInputScreen({ navigation }: PhoneInputScreenProps) {
 
   const isValid = phoneNumber.replace(/\D/g, '').length >= 10;
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
+    const fullPhone = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
     setLoading(true);
-    // Mock: simulate sending code
-    setTimeout(() => {
-      setLoading(false);
-      navigation.navigate('OTPVerify', {
-        phoneNumber: `${countryCode}${phoneNumber}`,
-      });
-    }, 1000);
+    // [SUPABASE-TODO] Restore real OTP:
+    // const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
+    // if (error) { Alert.alert('Error', error.message); setLoading(false); return; }
+    await new Promise((r) => setTimeout(r, 800)); // simulate network
+    setLoading(false);
+    navigation.navigate('OTPVerify', { phoneNumber: fullPhone });
   };
 
   return (
