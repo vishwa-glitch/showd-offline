@@ -6,6 +6,15 @@ import { EditTaskScreen } from '../screens/modals/EditTaskScreen';
 import { TaskDetailScreen } from '../screens/main/TaskDetailScreen';
 import { FocusTimerScreen } from '../screens/main/FocusTimerScreen';
 import { MyWitnessesScreen } from '../screens/main/MyWitnessesScreen';
+import { HowShowdWorksScreen } from '../screens/settings/HowShowdWorksScreen';
+import { EditProfileScreen } from '../screens/settings/EditProfileScreen';
+import { QuietHoursScreen } from '../screens/settings/QuietHoursScreen';
+import { SnoozeLimitScreen } from '../screens/settings/SnoozeLimitScreen';
+import { ReminderSoundScreen } from '../screens/settings/ReminderSoundScreen';
+import { PeopleISupportScreen } from '../screens/settings/PeopleISupportScreen';
+import { SendFeedbackScreen } from '../screens/settings/SendFeedbackScreen';
+import { PrivacyPolicyScreen } from '../screens/settings/PrivacyPolicyScreen';
+import { TermsOfServiceScreen } from '../screens/settings/TermsOfServiceScreen';
 import { Colors } from '../utils/colors';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -57,6 +66,51 @@ export function RootStack() {
       <Stack.Screen
         name="MyWitnesses"
         component={MyWitnessesScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="HowShowdWorks"
+        component={HowShowdWorksScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="QuietHours"
+        component={QuietHoursScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SnoozeLimit"
+        component={SnoozeLimitScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ReminderSound"
+        component={ReminderSoundScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="PeopleISupport"
+        component={PeopleISupportScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SendFeedback"
+        component={SendFeedbackScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="TermsOfService"
+        component={TermsOfServiceScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

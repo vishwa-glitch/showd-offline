@@ -58,7 +58,7 @@ export function PhoneInputScreen({ navigation }: PhoneInputScreenProps) {
             <Input
               placeholder="Phone number"
               value={phoneNumber}
-              onChangeText={setPhoneNumber}
+              onChangeText={(text) => setPhoneNumber(text.replace(/[^0-9]/g, ''))}
               keyboardType="phone-pad"
               autoFocus
               containerStyle={styles.phoneInput}

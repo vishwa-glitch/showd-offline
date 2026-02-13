@@ -26,6 +26,15 @@ export type RootStackParamList = {
   TaskDetail: { taskId: string };
   FocusTimer: { taskId: string; taskEventId: string };
   MyWitnesses: undefined;
+  HowShowdWorks: undefined;
+  EditProfile: undefined;
+  QuietHours: undefined;
+  SnoozeLimit: undefined;
+  ReminderSound: undefined;
+  PeopleISupport: undefined;
+  SendFeedback: undefined;
+  PrivacyPolicy: undefined;
+  TermsOfService: undefined;
 };
 
 // Screen prop types
@@ -52,3 +61,12 @@ export type EditTaskScreenProps = NativeStackScreenProps<RootStackParamList, 'Ed
 export type TaskDetailScreenProps = NativeStackScreenProps<RootStackParamList, 'TaskDetail'>;
 export type FocusTimerScreenProps = NativeStackScreenProps<RootStackParamList, 'FocusTimer'>;
 export type MyWitnessesScreenProps = NativeStackScreenProps<RootStackParamList, 'MyWitnesses'>;
+export type HowShowdWorksScreenProps = NativeStackScreenProps<RootStackParamList, 'HowShowdWorks'>;
+export type EditProfileScreenProps = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
+export type QuietHoursScreenProps = NativeStackScreenProps<RootStackParamList, 'QuietHours'>;
+export type SnoozeLimitScreenProps = NativeStackScreenProps<RootStackParamList, 'SnoozeLimit'>;
+export type ReminderSoundScreenProps = NativeStackScreenProps<RootStackParamList, 'ReminderSound'>;
+export type PeopleISupportScreenProps = NativeStackScreenProps<RootStackParamList, 'PeopleISupport'>;
+export type SendFeedbackScreenProps = NativeStackScreenProps<RootStackParamList, 'SendFeedback'>;
+export type PrivacyPolicyScreenProps = NativeStackScreenProps<RootStackParamList, 'PrivacyPolicy'>;
+export type TermsOfServiceScreenProps = NativeStackScreenProps<RootStackParamList, 'TermsOfService'>;

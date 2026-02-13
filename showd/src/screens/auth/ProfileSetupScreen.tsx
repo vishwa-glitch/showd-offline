@@ -70,7 +70,7 @@ export function ProfileSetupScreen({ navigation, route }: ProfileSetupScreenProp
           label="What should we call you?"
           placeholder="Your name"
           value={name}
-          onChangeText={setName}
+          onChangeText={(text) => setName(text.replace(/[0-9]/g, ''))}
           autoFocus
         />
       </View>

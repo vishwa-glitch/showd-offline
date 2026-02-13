@@ -128,3 +128,102 @@ export async function openOEMBatterySettings(): Promise<void> {
     await Linking.openSettings();
   }
 }
+
+/**
+ * OEM-specific autostart deep links.
+ * Each brand has multiple possible intents — tried in order.
+ */
+const AUTOSTART_DEEP_LINKS: Record<string, string[]> = {
+  xiaomi: [
+    'miui.intent.action.OP_AUTO_START',
+    'com.miui.securitycenter',
+  ],
+  redmi: [
+    'miui.intent.action.OP_AUTO_START',
+    'com.miui.securitycenter',
+  ],
+  poco: [
+    'miui.intent.action.OP_AUTO_START',
+    'com.miui.securitycenter',
+  ],
+  oppo: [
+    'com.coloros.safecenter',
+    'com.oppo.safe',
+  ],
+  realme: [
+    'com.coloros.safecenter',
+    'com.oplus.safe',
+  ],
+  vivo: [
+    'com.vivo.permissionmanager',
+    'com.iqoo.secure',
+  ],
+  iqoo: [
+    'com.vivo.permissionmanager',
+    'com.iqoo.secure',
+  ],
+  oneplus: [
+    'com.oneplus.security',
+  ],
+  samsung: [
+    'com.samsung.android.lool',
+  ],
+  huawei: [
+    'com.huawei.systemmanager',
+    'huawei.intent.action.HSM_BOOTAPP_MANAGER',
+  ],
+  honor: [
+    'com.huawei.systemmanager',
+    'huawei.intent.action.HSM_BOOTAPP_MANAGER',
+  ],
+};
+
+/**
+ * Open autostart settings for the current device's OEM.
+ * Tries multiple deep link strategies per brand, then falls back gracefully.
+ */
+export async function openAutostartSettings(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+
+  const brand = (await import('expo-device')).brand?.toLowerCase() ?? '';
+  const deepLinks = Object.entries(AUTOSTART_DEEP_LINKS).find(
+    ([key]) => brand.includes(key),
+  )?.[1];
+
+  if (deepLinks) {
+    for (const link of deepLinks) {
+      // Try as intent action
+      try {
+        const intentUrl = `intent://#Intent;action=${link};end`;
+        const canOpen = await Linking.canOpenURL(intentUrl);
+        if (canOpen) {
+          await Linking.openURL(intentUrl);
+          return true;
+        }
+      } catch {
+        // Try next strategy
+      }
+
+      // Try as package launch
+      try {
+        const packageUrl = `android-app://${link}`;
+        const canOpen = await Linking.canOpenURL(packageUrl);
+        if (canOpen) {
+          await Linking.openURL(packageUrl);
+          return true;
+        }
+      } catch {
+        // Try next link
+      }
+    }
+  }
+
+  // All deep links failed — fall back to power manager, then general settings
+  try {
+    await notifee.openPowerManagerSettings();
+    return true;
+  } catch {
+    await Linking.openSettings();
+    return true;
+  }
+}

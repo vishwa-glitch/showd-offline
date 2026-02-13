@@ -149,14 +149,14 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
             icon="user"
             label="Profile"
             value={user?.name || 'Guest'}
-            onPress={comingSoon}
+            onPress={() => navigation.navigate('EditProfile')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="phone"
             label="Phone number"
             value={isGuest ? 'Not set' : user?.phone || ''}
-            onPress={isGuest ? comingSoon : undefined}
+            showChevron={false}
           />
           {isGuest && (
             <>
@@ -180,22 +180,22 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <SettingRow
             icon="moon"
             label="Quiet Hours"
-            onPress={comingSoon}
-            value="Off"
+            onPress={() => navigation.navigate('QuietHours')}
+            value={user?.quietHoursEnabled ? 'On' : 'Off'}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="bell"
             label="Default snooze limit"
             value={`${user?.defaultSnoozeLimit || 3}`}
-            onPress={comingSoon}
+            onPress={() => navigation.navigate('SnoozeLimit')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="volume-2"
             label="Reminder sound"
             value="Default"
-            onPress={comingSoon}
+            onPress={() => navigation.navigate('ReminderSound')}
           />
           <View style={styles.divider} />
           <SettingRow
@@ -226,7 +226,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <SettingRow
             icon="heart"
             label="People I support"
-            onPress={comingSoon}
+            onPress={() => navigation.navigate('PeopleISupport')}
           />
         </View>
 
@@ -236,25 +236,25 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <SettingRow
             icon="help-circle"
             label="How Showd works"
-            onPress={comingSoon}
+            onPress={() => navigation.navigate('HowShowdWorks')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="message-square"
             label="Send feedback"
-            onPress={comingSoon}
+            onPress={() => navigation.navigate('SendFeedback')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="file-text"
             label="Privacy Policy"
-            onPress={comingSoon}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="file-text"
             label="Terms of Service"
-            onPress={comingSoon}
+            onPress={() => navigation.navigate('TermsOfService')}
           />
           <View style={styles.divider} />
           <SettingRow

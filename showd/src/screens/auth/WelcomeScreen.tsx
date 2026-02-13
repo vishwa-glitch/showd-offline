@@ -6,11 +6,9 @@ import { Colors } from '../../utils/colors';
 import { Typography } from '../../utils/typography';
 import { Spacing } from '../../utils/spacing';
 import { Button } from '../../components/ui/Button';
-import { useSignInAsGuest } from '../../store/authStore';
 import type { WelcomeScreenProps } from '../../types/navigation';
 
 export function WelcomeScreen({ navigation }: WelcomeScreenProps) {
-  const signInAsGuest = useSignInAsGuest();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -57,12 +55,6 @@ export function WelcomeScreen({ navigation }: WelcomeScreenProps) {
           label="Get Started"
           onPress={() => navigation.navigate('Onboarding')}
           fullWidth
-        />
-        <Button
-          label="Try without signing up"
-          onPress={signInAsGuest}
-          variant="text"
-          style={styles.guestButton}
         />
       </View>
     </SafeAreaView>
@@ -129,8 +121,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xl,
     gap: Spacing.sm,
-  },
-  guestButton: {
-    alignSelf: 'center',
   },
 });

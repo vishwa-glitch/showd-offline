@@ -108,4 +108,5 @@ export const useUser = () => useAuthStoreBase((s) => s.user);
 export const useSignIn = () => useAuthStoreBase((s) => s.signIn);
 export const useSignInAsGuest = () => useAuthStoreBase((s) => s.signInAsGuest);
 export const useSignOut = () => useAuthStoreBase((s) => s.signOut);
+export const useUpdateProfile = () => useAuthStoreBase((s) => s.updateProfile);
 // [SUPABASE-TODO] Restore: export const useHydrateAuth = () => useAuthStoreBase((s) => s.hydrateFromCloud);

@@ -14,7 +14,7 @@ import {
   requestNotificationPermission,
   requestExactAlarmPermission,
   requestBatteryOptimizationDisable,
-  openOEMBatterySettings,
+  openAutostartSettings,
 } from '../../services/permissions';
 import { isProblematicOEM, getOEMDisplayName } from '../../constants/oemConfig';
 
@@ -119,7 +119,7 @@ export function ReminderHealthCheck() {
                 label={`${getOEMDisplayName()} Autostart`}
                 granted={null}
                 onFix={async () => {
-                  await openOEMBatterySettings();
+                  await openAutostartSettings();
                   refreshPermissions();
                 }}
               />

@@ -59,7 +59,8 @@ export function OTPVerifyScreen({ navigation, route }: OTPVerifyScreenProps) {
       const nextIndex = Math.min(index + digits.length, CODE_LENGTH - 1);
       inputRefs.current[nextIndex]?.focus();
     } else {
-      newCode[index] = text;
+      const digit = text.replace(/[^0-9]/g, '');
+      newCode[index] = digit;
       setCode(newCode);
       if (text && index < CODE_LENGTH - 1) {
         inputRefs.current[index + 1]?.focus();
