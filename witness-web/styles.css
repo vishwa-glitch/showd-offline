@@ -282,6 +282,25 @@ body {
   color: var(--text-tertiary);
 }
 
+/* --- Dashboard Link --- */
+
+.dashboard-link-btn {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 14px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border: 1.5px solid var(--border);
+  text-decoration: none;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.dashboard-link-btn:hover {
+  background-color: var(--surface);
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 480px) {
