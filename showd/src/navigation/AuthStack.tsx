@@ -6,7 +6,7 @@ import { PhoneInputScreen } from '../screens/auth/PhoneInputScreen';
 import { OTPVerifyScreen } from '../screens/auth/OTPVerifyScreen';
 import { ProfileSetupScreen } from '../screens/auth/ProfileSetupScreen';
 import { PermissionSetupScreen } from '../screens/auth/PermissionSetupScreen';
-import { OEMBatterySetupScreen } from '../screens/auth/OEMBatterySetupScreen';
+
 import type { AuthStackParamList } from '../types/navigation';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
@@ -25,7 +25,7 @@ export function AuthStack() {
       <Stack.Screen name="OTPVerify" component={OTPVerifyScreen} />
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="PermissionSetup" component={PermissionSetupScreen} />
-      <Stack.Screen name="OEMBatterySetup" component={OEMBatterySetupScreen} />
+
     </Stack.Navigator>
   );
 }

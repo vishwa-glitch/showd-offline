@@ -1,15 +1,8 @@
-// ============================================
-// DEMO MODE: Supabase calls commented out.
-// Using Zustand-only local state for demo.
-// Search for [SUPABASE-TODO] to restore.
-// ============================================
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useShallow } from 'zustand/react/shallow';
 import type { Task, TaskEvent, TaskFormData } from '../types/task';
-// [SUPABASE-TODO] Restore cloud sync:
-// import { pushTask, pushDeleteTask, pushEvent, pushEventUpdate } from '../services/syncEngine';
 
 interface TaskState {
   tasks: Task[];
@@ -30,6 +23,7 @@ interface TaskState {
   getTodayTasks: () => Task[];
   getTaskEvents: (taskId: string) => TaskEvent[];
   getCompletedTodayCount: () => number;
+  getActiveTaskCount: () => number;
 
   hydrateFromCloud: (tasks: Task[], events: TaskEvent[]) => void;
 }
@@ -84,14 +78,16 @@ const useTaskStoreBase = create<TaskState>()(
           witnessName: formData.witnessName || undefined,
           witnessRelationship: formData.witnessRelationship || undefined,
           personalWitnessName: formData.personalWitnessName || undefined,
+          requirePhotoProof: formData.requirePhotoProof,
+          reminderSoundId: formData.reminderSoundId ?? undefined,
           isActive: true,
+          isPaused: false,
           currentStreak: 0,
           longestStreak: 0,
           createdAt: now,
           updatedAt: now,
         };
         set((state) => ({ tasks: [...state.tasks, newTask] }));
-        // [SUPABASE-TODO] Restore: pushTask(newTask);
         return newTask;
       },
 
@@ -102,9 +98,6 @@ const useTaskStoreBase = create<TaskState>()(
               ? { ...t, ...updates, updatedAt: new Date().toISOString() }
               : t
           );
-          // [SUPABASE-TODO] Restore cloud sync:
-          // const updated = tasks.find((t) => t.id === taskId);
-          // if (updated) pushTask(updated);
           return { tasks };
         }),
 
@@ -113,7 +106,6 @@ const useTaskStoreBase = create<TaskState>()(
           tasks: state.tasks.filter((t) => t.id !== taskId),
           events: state.events.filter((e) => e.taskId !== taskId),
         }));
-        // [SUPABASE-TODO] Restore: pushDeleteTask(taskId);
       },
 
       getTaskById: (taskId) => get().tasks.find((t) => t.id === taskId),
@@ -132,12 +124,12 @@ const useTaskStoreBase = create<TaskState>()(
         } else {
           set((state) => ({ events: [...state.events, event] }));
         }
-        // [SUPABASE-TODO] Restore: pushEvent(event);
       },
 
       completeTask: (taskId) => {
         const now = new Date().toISOString();
         const today = now.split('T')[0];
+        const userId = get().tasks.find((t) => t.id === taskId)?.userId ?? '';
 
         const alreadyDone = get().events.some(
           (e) => e.taskId === taskId && e.scheduledFor.startsWith(today) && e.status === 'done'
@@ -155,6 +147,7 @@ const useTaskStoreBase = create<TaskState>()(
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
+          userId,
           scheduledFor: now,
           status: 'done',
           respondedAt: now,
@@ -176,11 +169,6 @@ const useTaskStoreBase = create<TaskState>()(
           ),
         }));
 
-        // [SUPABASE-TODO] Restore cloud sync:
-        // pushEvent(event);
-        // const updated = get().tasks.find((t) => t.id === taskId);
-        // if (updated) pushTask(updated);
-
         return newStreak;
       },
 
@@ -199,6 +187,7 @@ const useTaskStoreBase = create<TaskState>()(
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
+          userId: task.userId,
           scheduledFor: now,
           status: 'snoozed',
           respondedAt: now,
@@ -207,16 +196,17 @@ const useTaskStoreBase = create<TaskState>()(
         };
 
         set((state) => ({ events: [...state.events, event] }));
-        // [SUPABASE-TODO] Restore: pushEvent(event);
         return true;
       },
 
       struggleTask: (taskId, reason, note) => {
         const now = new Date().toISOString();
         const today = now.split('T')[0];
+        const task = get().tasks.find((t) => t.id === taskId);
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
+          userId: task?.userId ?? '',
           scheduledFor: now,
           status: 'struggled',
           respondedAt: now,
@@ -231,15 +221,12 @@ const useTaskStoreBase = create<TaskState>()(
             t.id === taskId ? { ...t, currentStreak: 0, updatedAt: now } : t
           ),
         }));
-        // [SUPABASE-TODO] Restore cloud sync:
-        // pushEvent(event);
-        // const updated = get().tasks.find((t) => t.id === taskId);
-        // if (updated) pushTask(updated);
       },
 
       markTaskMissed: (taskId) => {
         const now = new Date().toISOString();
         const today = now.split('T')[0];
+        const task = get().tasks.find((t) => t.id === taskId);
 
         const alreadyHandled = get().events.some(
           (e) =>
@@ -252,6 +239,7 @@ const useTaskStoreBase = create<TaskState>()(
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
+          userId: task?.userId ?? '',
           scheduledFor: now,
           status: 'missed',
           snoozeCount: 0,
@@ -263,13 +251,9 @@ const useTaskStoreBase = create<TaskState>()(
             t.id === taskId ? { ...t, currentStreak: 0, updatedAt: now } : t
           ),
         }));
-        // [SUPABASE-TODO] Restore cloud sync:
-        // pushEvent(event);
-        // const updated = get().tasks.find((t) => t.id === taskId);
-        // if (updated) pushTask(updated);
       },
 
-      getTodayTasks: () => get().tasks.filter((t) => t.isActive),
+      getTodayTasks: () => get().tasks.filter((t) => t.isActive && !t.isPaused),
 
       getTaskEvents: (taskId) =>
         get().events.filter((e) => e.taskId === taskId),
@@ -283,6 +267,9 @@ const useTaskStoreBase = create<TaskState>()(
         );
         return completedIds.size;
       },
+
+      getActiveTaskCount: () =>
+        get().tasks.filter((t) => t.isActive && !t.isPaused).length,
 
       hydrateFromCloud: (tasks, events) =>
         set({ tasks, events }),
@@ -317,9 +304,10 @@ export const useStruggleTask = () => useTaskStoreBase((s) => s.struggleTask);
 export const useMarkTaskMissed = () => useTaskStoreBase((s) => s.markTaskMissed);
 export const useAddEvent = () => useTaskStoreBase((s) => s.addEvent);
 export const useHydrateTasks = () => useTaskStoreBase((s) => s.hydrateFromCloud);
+export const useGetActiveTaskCount = () => useTaskStoreBase((s) => s.getActiveTaskCount);
 
 // Derived data hooks
-export const useTodayTasks = () => useTaskStoreBase(useShallow((s) => s.tasks.filter((t) => t.isActive)));
+export const useTodayTasks = () => useTaskStoreBase(useShallow((s) => s.tasks.filter((t) => t.isActive && !t.isPaused)));
 
 export const useCompletedTodayCount = () => {
   const events = useTaskStoreBase(useShallow((s) => s.events));

@@ -8,8 +8,9 @@ import notifee, {
 } from '@notifee/react-native';
 import { Platform } from 'react-native';
 import type { Task } from '../types/task';
+import { BUILT_IN_SOUNDS, DEFAULT_SOUND_ID, getChannelIdForSound } from '../utils/sounds';
+import { getSelectedSoundId } from '../store/soundStore';
 
-const CHANNEL_ID = 'showd-reminders';
 const SERVICE_CHANNEL_ID = 'showd-service';
 const VIBRATION_PATTERN = [0, 400, 200, 400, 200, 400];
 
@@ -19,14 +20,27 @@ const VIBRATION_PATTERN = [0, 400, 200, 400, 200, 400];
  */
 export async function initializeNotifications(): Promise<void> {
   if (Platform.OS === 'android') {
+    // Create one notification channel per built-in sound
+    for (const sound of BUILT_IN_SOUNDS) {
+      await notifee.createChannel({
+        id: `showd-reminder-${sound.id}`,
+        name: `Reminders (${sound.name})`,
+        importance: AndroidImportance.HIGH,
+        sound: sound.id,
+        vibration: true,
+        vibrationPattern: VIBRATION_PATTERN,
+        bypassDnd: true,
+      });
+    }
+
+    // Custom sound channel (Pro users)
     await notifee.createChannel({
-      id: CHANNEL_ID,
-      name: 'Task Reminders',
-      description: 'Unskippable reminders for your tasks',
+      id: 'showd-reminder-custom',
+      name: 'Reminders (Custom Sound)',
       importance: AndroidImportance.HIGH,
+      sound: DEFAULT_SOUND_ID,
       vibration: true,
       vibrationPattern: VIBRATION_PATTERN,
-      sound: 'default',
       bypassDnd: true,
     });
 
@@ -157,23 +171,26 @@ function buildNotification(task: Task): Notification {
         ? `Don't let ${task.personalWitnessName} down`
         : 'Time to show up for yourself';
 
+  // Use the globally selected sound (offline, from AsyncStorage-persisted store)
+  const soundId = getSelectedSoundId();
+  const channelId = getChannelIdForSound(soundId);
+
   return {
     id: task.id,
     title: task.name,
     body: witnessLabel,
     data: { taskId: task.id },
     android: {
-      channelId: CHANNEL_ID,
+      channelId,
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
       fullScreenAction: { id: 'default' },
       ongoing: true,
       pressAction: { id: 'default' },
       vibrationPattern: VIBRATION_PATTERN,
-      sound: 'default',
     },
     ios: {
-      sound: 'default',
+      sound: `${soundId}.mp3`,
       interruptionLevel: 'timeSensitive',
     },
   };

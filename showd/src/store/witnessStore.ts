@@ -1,15 +1,8 @@
-// ============================================
-// DEMO MODE: Supabase calls commented out.
-// Using Zustand-only local state for demo.
-// Search for [SUPABASE-TODO] to restore.
-// ============================================
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useShallow } from 'zustand/react/shallow';
 import type { WitnessConnection, ConnectionStatus } from '../types/witness';
-// [SUPABASE-TODO] Restore cloud sync:
-// import { pushConnection, pushDeleteConnection } from '../services/syncEngine';
 
 const generateUUID = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -62,7 +55,6 @@ const useWitnessStoreBase = create<WitnessState>()(
           invitedAt: now,
         };
         set((state) => ({ connections: [...state.connections, connection] }));
-        // [SUPABASE-TODO] Restore: pushConnection(connection);
         return connection;
       },
 
@@ -80,16 +72,12 @@ const useWitnessStoreBase = create<WitnessState>()(
               : c,
           ),
         }));
-        // [SUPABASE-TODO] Restore cloud sync:
-        // const updated = get().connections.find((c) => c.id === connectionId);
-        // if (updated) pushConnection(updated);
       },
 
       removeConnection: (connectionId) => {
         set((state) => ({
           connections: state.connections.filter((c) => c.id !== connectionId),
         }));
-        // [SUPABASE-TODO] Restore: pushDeleteConnection(connectionId);
       },
 
       getConnectionByTaskId: (taskId) =>
@@ -108,18 +96,12 @@ const useWitnessStoreBase = create<WitnessState>()(
             c.id === connectionId ? { ...c, followUpSentAt: now } : c,
           ),
         }));
-        // [SUPABASE-TODO] Restore cloud sync:
-        // const updated = get().connections.find((c) => c.id === connectionId);
-        // if (updated) pushConnection(updated);
       },
 
       removeConnectionsByTaskId: (taskId) => {
-        // [SUPABASE-TODO] Restore cloud sync:
-        // const toRemove = get().connections.filter((c) => c.taskId === taskId);
         set((state) => ({
           connections: state.connections.filter((c) => c.taskId !== taskId),
         }));
-        // [SUPABASE-TODO] Restore: toRemove.forEach((c) => pushDeleteConnection(c.id));
       },
 
       hydrateFromCloud: (connections) =>

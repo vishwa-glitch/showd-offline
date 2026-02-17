@@ -46,28 +46,18 @@ export function struggledTaskMessage(params: {
   );
 }
 
-export function dailySummaryMessage(params: {
+export function weeklySummaryMessage(params: {
   taskDoerName: string;
   completed: number;
   total: number;
-  streakInfo?: string;
-}): string {
-  const rate = params.total > 0 ? Math.round((params.completed / params.total) * 100) : 0;
-  let msg = `${params.taskDoerName}'s daily update: ${params.completed}/${params.total} tasks done (${rate}%).`;
-  if (params.streakInfo) msg += ` ${params.streakInfo}`;
-  msg += ' — Showd';
-  return msg;
-}
-
-export function weeklySummaryMessage(params: {
-  taskDoerName: string;
   completionRate: number;
   longestStreak: number;
+  dashboardUrl?: string;
 }): string {
-  return (
-    `Weekly update for ${params.taskDoerName}: ${params.completionRate}% completion rate, ` +
-    `longest streak: ${params.longestStreak} days. — Showd`
-  );
+  let msg = `${params.taskDoerName}'s week: ✅ ${params.completed}/${params.total} done (${params.completionRate}%). Streak: ${params.longestStreak} days.`;
+  if (params.dashboardUrl) msg += ` See details: ${params.dashboardUrl}`;
+  msg += ' — Showd';
+  return msg;
 }
 
 export function streakMilestoneMessage(params: {
@@ -78,5 +68,24 @@ export function streakMilestoneMessage(params: {
   return (
     `${params.taskDoerName} hit a ${params.streak}-day streak on "${params.taskName}"! ` +
     `Your support is working. — Showd`
+  );
+}
+
+export function suspendedMessage(params: {
+  taskDoerName: string;
+  taskName: string;
+}): string {
+  return (
+    `${params.taskDoerName}'s accountability for "${params.taskName}" has been paused. ` +
+    `You won't receive updates until they re-subscribe. — Showd`
+  );
+}
+
+export function reactivatedMessage(params: {
+  taskDoerName: string;
+  taskName: string;
+}): string {
+  return (
+    `${params.taskDoerName} is back! You'll resume getting updates for "${params.taskName}". — Showd`
   );
 }

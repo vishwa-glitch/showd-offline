@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
-import { useUser, useIsGuest } from '../../store/authStore';
+import { useUser } from '../../store/authStore';
 import { useEvents, useTodayTasks, useCompletedTodayCount, useCompleteTask } from '../../store/taskStore';
 import { useTriggerReminder } from '../../store/reminderStore';
 import { TaskCard } from '../../components/task/TaskCard';
@@ -13,6 +13,7 @@ import { TaskEmptyState } from '../../components/task/TaskEmptyState';
 import { QuickStatsRow } from '../../components/task/QuickStatsRow';
 import { PermissionBanner } from '../../components/permissions/PermissionBanner';
 import { ActiveTimerBar } from '../../components/timer/ActiveTimerBar';
+import { TrialBanner } from '../../components/subscription/TrialBanner';
 import { useIsTimerActive, useActiveTimerTaskId, useTimerRemainingSeconds } from '../../store/timerStore';
 import type { TodayScreenProps } from '../../types/navigation';
 import type { Task } from '../../types/task';
@@ -34,7 +35,6 @@ function formatDate(): string {
 
 export function TodayScreen({ navigation }: TodayScreenProps) {
   const user = useUser();
-  const isGuest = useIsGuest();
   const tasks = useTodayTasks();
   const completedCount = useCompletedTodayCount();
   const events = useEvents();
@@ -91,15 +91,8 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Guest Banner */}
-      {isGuest && (
-        <View style={styles.guestBanner}>
-          <Feather name="info" size={14} color={Colors.primary} />
-          <Text style={styles.guestText}>
-            Sign up to save your progress and add real witnesses
-          </Text>
-        </View>
-      )}
+      {/* Trial Banner */}
+      <TrialBanner onGoProPress={() => navigation.navigate('Paywall', { reason: 'pro_required' })} />
 
       {/* Permission Banner */}
       <PermissionBanner />
@@ -115,29 +108,6 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
           </Text>
           <Text style={styles.date}>{formatDate()}</Text>
         </View>
-        {/* DEV TEST BUTTON - Remove in production */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#FF4D6A',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 8,
-          }}
-          onPress={() => {
-            console.log('[TodayScreen] Test button pressed!');
-            console.log('[TodayScreen] Tasks available:', tasks.length);
-            if (tasks.length > 0) {
-              console.log('[TodayScreen] Triggering reminder for first task:', tasks[0].id);
-              triggerReminder(tasks[0].id);
-            } else {
-              console.log('[TodayScreen] No tasks! Creating mock trigger...');
-              // Even without a real task, let's set a mock ID to see if overlay renders
-              triggerReminder('mock-test-task-id');
-            }
-          }}
-        >
-          <Text style={{ color: '#FFF', fontWeight: 'bold' }}>🧪 Test Reminder</Text>
-        </TouchableOpacity>
       </View>
 
       {tasks.length > 0 ? (
@@ -177,19 +147,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  guestBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  guestText: {
-    ...Typography.caption,
-    color: Colors.primary,
-    flex: 1,
   },
   header: {
     paddingHorizontal: Spacing.xl,

@@ -25,6 +25,10 @@ export const Colors = {
   inProgress: '#3498DB',
   inProgressLight: '#EBF5FB',
 
+  // Pro / Upgrade
+  proGold: '#F5A623',
+  proGoldLight: '#FEF6E7',
+
   // Overlay
   overlayDark: 'rgba(0, 0, 0, 0.85)',
   overlayMedium: 'rgba(0, 0, 0, 0.5)',

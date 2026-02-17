@@ -8,7 +8,8 @@
       "Bash(npx expo:*)",
       "Bash(ls -la \"D:\\\\showd-mobile-app\\\\showd\\\\src\\\\store\"\" 2>/dev/null || echo \"Store dir not found \")",
       "Bash(ls:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(echo:*)"
     ]
   }
 }

@@ -31,7 +31,7 @@ const PAGES = [
     iconBg: Colors.strugglingLight,
     title: 'Add someone who cares',
     description:
-      "Choose someone you respect. They'll know when you succeed — and when you need support.",
+      "Choose someone you respect. They'll know when you succeed — and when you need support. Available during your free trial and with Pro.",
   },
 ];
 
@@ -87,6 +87,17 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
             ]}
           />
         ))}
+      </View>
+
+      {/* Free Trial Banner */}
+      <View style={styles.trialBanner}>
+        <Feather name="gift" size={20} color={Colors.proGold} />
+        <View style={styles.trialTextContainer}>
+          <Text style={styles.trialTitle}>7 days of Pro, free</Text>
+          <Text style={styles.trialSubtitle}>
+            Witnesses, streaks & more — no payment required
+          </Text>
+        </View>
       </View>
 
       {/* Bottom Button */}
@@ -159,8 +170,33 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     width: 24,
   },
+  trialBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.proGoldLight,
+    marginHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.proGold,
+    gap: Spacing.md,
+  },
+  trialTextContainer: {
+    flex: 1,
+  },
+  trialTitle: {
+    ...Typography.heading3,
+    color: Colors.textPrimary,
+  },
+  trialSubtitle: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
   bottomSection: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xl,
+    paddingTop: Spacing.base,
   },
 });

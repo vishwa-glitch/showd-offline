@@ -1,5 +1,5 @@
-export type ConnectionStatus = 'invited' | 'active' | 'declined' | 'removed';
-export type NotificationPreference = 'alerts_only' | 'daily' | 'weekly';
+export type ConnectionStatus = 'invited' | 'active' | 'declined' | 'removed' | 'suspended';
+export type NotificationPreference = 'alerts_only' | 'weekly';
 
 export interface WitnessConnection {
   id: string;
@@ -16,6 +16,7 @@ export interface WitnessConnection {
   followUpSentAt?: string;
   acceptedAt?: string;
   declinedAt?: string;
+  suspendedAt?: string;
 }
 
 export interface Nudge {

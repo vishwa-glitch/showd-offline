@@ -140,7 +140,7 @@ export function HowShowdWorksScreen({ navigation }: Props) {
           <StepSection
             stepNumber="06"
             heading="Your witness sees the real picture"
-            body="They get a daily or weekly summary — how many tasks you completed, what you missed, your streak. When you're struggling, they get a gentle alert so they can reach out. It's accountability with compassion."
+            body="They get a weekly summary — how many tasks you completed, what you missed, your streak. When you're struggling, they get a gentle alert so they can reach out. It's accountability with compassion."
             delay={350}
           >
             <SmsBubbles />

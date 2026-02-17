@@ -18,9 +18,10 @@ import {
   requestNotificationPermission,
   requestExactAlarmPermission,
   requestBatteryOptimizationDisable,
+  requestFullScreenIntentPermission,
   checkAllPermissions,
 } from '../../services/permissions';
-import { isProblematicOEM } from '../../constants/oemConfig';
+
 import {
   useSetOnboardingCompleted,
   useSetPermissionStatus,
@@ -30,10 +31,11 @@ import type { PermissionSetupScreenProps } from '../../types/navigation';
 
 type ItemStatus = 'pending' | 'granted' | 'denied';
 
-export function PermissionSetupScreen({ navigation, route }: PermissionSetupScreenProps) {
+export function PermissionSetupScreen({ route }: PermissionSetupScreenProps) {
   const { user } = route.params;
   const [notifStatus, setNotifStatus] = useState<ItemStatus>('pending');
   const [alarmStatus, setAlarmStatus] = useState<ItemStatus>('pending');
+  const [fullScreenStatus, setFullScreenStatus] = useState<ItemStatus>('pending');
   const [batteryStatus, setBatteryStatus] = useState<ItemStatus>('pending');
   const [isRequesting, setIsRequesting] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -43,34 +45,99 @@ export function PermissionSetupScreen({ navigation, route }: PermissionSetupScre
   const signIn = useSignIn();
 
   const isAndroid = Platform.OS === 'android';
+  const needsFullScreenIntent = isAndroid && Number(Platform.Version) >= 34;
 
   const finishSetup = useCallback(() => {
     setOnboardingCompleted();
     signIn(user);
-    if (isAndroid && isProblematicOEM()) {
-      navigation.navigate('OEMBatterySetup' as any, { user });
-    }
-    // signIn triggers navigation to RootStack via AppNavigator
-  }, [setOnboardingCompleted, signIn, user, navigation, isAndroid]);
+  }, [setOnboardingCompleted, signIn, user]);
 
   const handleEnableReminders = useCallback(async () => {
     setIsRequesting(true);
 
-    // Step 1: Notifications
+    // Step 1: Notifications (BLOCKING)
     const notifGranted = await requestNotificationPermission();
     setNotifStatus(notifGranted ? 'granted' : 'denied');
     setPermissionStatus('notificationsGranted', notifGranted);
 
-    // Step 2: Exact alarm (Android only)
+    if (!notifGranted) {
+      setIsRequesting(false);
+      Alert.alert(
+        'Notifications Required',
+        'Showd needs notification permission to send you reminders. Without this, the app won\'t work at all.',
+        [
+          {
+            text: 'Open Settings',
+            onPress: async () => {
+              const { Linking } = require('react-native');
+              await Linking.openSettings();
+            },
+          },
+          { text: 'Try Again', onPress: handleEnableReminders },
+        ],
+        { cancelable: false },
+      );
+      return;
+    }
+
+    // Step 2: Exact alarm (Android only, BLOCKING)
     if (isAndroid) {
       await requestExactAlarmPermission();
       // Re-check after user returns from settings
       const status = await checkAllPermissions();
-      setAlarmStatus(status.exactAlarm ? 'granted' : 'denied');
-      setPermissionStatus('exactAlarmGranted', status.exactAlarm);
+      const alarmGranted = status.exactAlarm;
+      setAlarmStatus(alarmGranted ? 'granted' : 'denied');
+      setPermissionStatus('exactAlarmGranted', alarmGranted);
+
+      if (!alarmGranted) {
+        setIsRequesting(false);
+        Alert.alert(
+          'Exact Alarms Required',
+          'Showd needs exact alarm permission to send reminders on time. Without this, reminders might be delayed by 15–30 minutes.',
+          [
+            {
+              text: 'Open Settings',
+              onPress: async () => {
+                await requestExactAlarmPermission();
+              },
+            },
+            { text: 'Try Again', onPress: handleEnableReminders },
+          ],
+          { cancelable: false },
+        );
+        return;
+      }
     }
 
-    // Step 3: Battery optimization (Android only)
+    // Step 3: Full-screen intent (Android 14+ only, BLOCKING)
+    if (needsFullScreenIntent) {
+      await requestFullScreenIntentPermission();
+      const status = await checkAllPermissions();
+      const fsGranted = status.fullScreenIntent;
+      setFullScreenStatus(fsGranted ? 'granted' : 'denied');
+      setPermissionStatus('fullScreenIntentGranted', fsGranted);
+
+      if (!fsGranted) {
+        setIsRequesting(false);
+        Alert.alert(
+          'Full-Screen Permission Required',
+          'Showd needs full-screen notification permission to show reminders like a phone call. Without this, reminders are just regular notifications you can swipe away.',
+          [
+            {
+              text: 'Open Settings',
+              onPress: async () => {
+                await requestFullScreenIntentPermission();
+              },
+            },
+            { text: 'Try Again', onPress: handleEnableReminders },
+          ],
+          { cancelable: false },
+        );
+        return;
+      }
+    }
+
+    // Step 4: Battery optimization (Android only, NOT blocking)
     if (isAndroid) {
       await requestBatteryOptimizationDisable();
       const status = await checkAllPermissions();
@@ -80,7 +147,7 @@ export function PermissionSetupScreen({ navigation, route }: PermissionSetupScre
 
     setIsRequesting(false);
     setCompleted(true);
-  }, [isAndroid, setPermissionStatus]);
+  }, [isAndroid, needsFullScreenIntent, setPermissionStatus]);
 
   const handleSkip = useCallback(() => {
     Alert.alert(
@@ -133,6 +200,14 @@ export function PermissionSetupScreen({ navigation, route }: PermissionSetupScre
               title="Fire at the exact time you set"
               description='Not "sometime soon"'
               status={alarmStatus}
+            />
+          )}
+          {needsFullScreenIntent && (
+            <PermissionItem
+              icon="maximize"
+              title="Take over your screen"
+              description="So you can't ignore it"
+              status={fullScreenStatus}
             />
           )}
           {isAndroid && (

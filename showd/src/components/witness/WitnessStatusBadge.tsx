@@ -34,6 +34,12 @@ const STATUS_CONFIG: Record<
     bg: Colors.surfaceSecondary,
     label: 'Removed',
   },
+  suspended: {
+    icon: 'pause-circle',
+    color: Colors.snooze,
+    bg: Colors.snoozeLight,
+    label: 'Suspended',
+  },
 };
 
 interface WitnessStatusBadgeProps {

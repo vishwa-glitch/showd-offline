@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../types/navigation';
 import {
   View,
   Text,
@@ -25,6 +28,10 @@ import {
   DEFAULT_FORM_DATA,
 } from '../../types/task';
 import { getInviteSMSPreview, validateWitnessPhone } from '../../services/witness';
+import { useIsPro, useIsTrialActive } from '../../store/subscriptionStore';
+import { ProBadge } from '../subscription/ProBadge';
+import { useSelectedSoundId } from '../../store/soundStore';
+import { getSoundName } from '../../utils/sounds';
 
 const CATEGORY_COLORS: Record<TaskCategory, string> = {
   medication: Colors.categoryMedication,
@@ -59,6 +66,7 @@ interface TaskFormProps {
   submitLabel: string;
   userPhone?: string;
   userName?: string;
+  onPaywall?: (reason: string) => void;
 }
 
 export function TaskForm({
@@ -67,7 +75,13 @@ export function TaskForm({
   submitLabel,
   userPhone,
   userName,
+  onPaywall,
 }: TaskFormProps) {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const selectedSoundId = useSelectedSoundId();
+  const isPro = useIsPro();
+  const isTrialActive = useIsTrialActive();
+  const canUseRealAccountability = isPro || isTrialActive;
   const [form, setForm] = useState<TaskFormData>({
     ...DEFAULT_FORM_DATA,
     ...initialData,
@@ -256,10 +270,18 @@ export function TaskForm({
               styles.accountabilityCard,
               form.accountabilityType === 'real' && styles.accountabilityCardSelected,
             ]}
-            onPress={() => updateForm({ accountabilityType: 'real' })}
+            onPress={() => {
+              if (!canUseRealAccountability) {
+                onPaywall?.('real_accountability');
+                return;
+              }
+              updateForm({ accountabilityType: 'real' });
+            }}
           >
             <View style={styles.recommendedBadge}>
-              <Text style={styles.recommendedBadgeText}>Recommended</Text>
+              <Text style={styles.recommendedBadgeText}>
+                {canUseRealAccountability ? 'Recommended' : 'Pro'}
+              </Text>
             </View>
             <Feather name="users" size={24} color={form.accountabilityType === 'real' ? Colors.primary : Colors.textTertiary} />
             <Text style={[styles.accountabilityTitle, form.accountabilityType === 'real' && styles.accountabilityTitleSelected]}>
@@ -373,6 +395,57 @@ export function TaskForm({
             <Feather name="plus" size={20} color={Colors.textPrimary} />
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Photo Proof */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Photo proof</Text>
+        <TouchableOpacity
+          style={styles.photoProofRow}
+          onPress={() => {
+            if (!isPro && !isTrialActive) {
+              onPaywall?.('photo_proof');
+              return;
+            }
+            updateForm({ requirePhotoProof: !form.requirePhotoProof });
+          }}
+        >
+          <View style={styles.photoProofLeft}>
+            <Feather name="camera" size={20} color={Colors.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.photoProofLabel}>
+                  Require photo proof after completion
+                </Text>
+                {!isPro && !isTrialActive && <ProBadge />}
+              </View>
+              <Text style={styles.photoProofHint}>
+                Take a photo to prove you did it
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.checkbox, form.requirePhotoProof && styles.checkboxChecked]}>
+            {form.requirePhotoProof && (
+              <Feather name="check" size={14} color={Colors.surface} />
+            )}
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Reminder Sound */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Reminder sound</Text>
+        <TouchableOpacity
+          style={styles.soundRow}
+          onPress={() => navigation.navigate('ReminderSound')}
+          activeOpacity={0.6}
+        >
+          <Feather name="volume-2" size={20} color={Colors.textSecondary} />
+          <Text style={styles.soundLabel}>
+            {getSoundName(selectedSoundId)}
+          </Text>
+          <Feather name="chevron-right" size={18} color={Colors.textTertiary} />
+        </TouchableOpacity>
       </View>
 
       {/* Submit */}
@@ -546,5 +619,57 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: Spacing.md,
+  },
+  photoProofRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.base,
+    ...Shadows.sm,
+  },
+  photoProofLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: Spacing.md,
+  },
+  photoProofLabel: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+  },
+  photoProofHint: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+    marginTop: 2,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  soundRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.base,
+    gap: Spacing.md,
+    ...Shadows.sm,
+  },
+  soundLabel: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    flex: 1,
+    textTransform: 'capitalize',
   },
 });

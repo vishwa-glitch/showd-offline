@@ -1,7 +1,27 @@
 /**
- * Showd Witness Dashboard — Phase 1
- * Fully functional UI with hardcoded mock data.
+ * Showd Witness Dashboard
+ * Phase 2: Real Supabase API integration with mock data fallback.
  */
+
+// ── API Configuration ─────────────────────────────────────────
+
+const SUPABASE_URL = 'https://jbmvhlrdtyluahrqpimp.supabase.co';
+
+function getToken() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('token') || '';
+}
+
+async function apiCall(functionName, body) {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'API error');
+  return data;
+}
 
 // ── Mock Event Generator ──────────────────────────────────────
 
@@ -215,6 +235,7 @@ const RELATIONSHIP_LABELS = {
 // ── App State ──────────────────────────────────────────────────
 
 let state = {
+  token: null,
   selectedWardIndex: 0,
   selectedTaskIndex: 0,
   calendarMonth: new Date().getMonth(),
@@ -244,15 +265,42 @@ function showToast(message, duration) {
 
 // ── Init ───────────────────────────────────────────────────────
 
-function init() {
-  // Simulate load delay
-  setTimeout(() => {
+async function init() {
+  const token = getToken();
+
+  // No token — fall back to mock data (demo mode)
+  if (!token) {
     state.data = MOCK_DASHBOARD;
     hideEl('state-loading');
     showEl('state-dashboard');
     renderDashboard();
     animateSections();
-  }, 600);
+    return;
+  }
+
+  // Real API mode
+  try {
+    const data = await apiCall('get-witness-dashboard', { token });
+    state.token = token;
+    state.data = data;
+    hideEl('state-loading');
+    showEl('state-dashboard');
+    renderDashboard();
+    animateSections();
+
+    // Set the notification preference radio to match the first ward's saved value
+    const ward = data.wards[0];
+    if (ward?.notificationPreference) {
+      const radio = document.querySelector(
+        `input[name="notif-pref"][value="${ward.notificationPreference}"]`
+      );
+      if (radio) radio.checked = true;
+    }
+  } catch (err) {
+    console.error('Dashboard load failed:', err);
+    hideEl('state-loading');
+    showEl('state-invalid');
+  }
 }
 
 function animateSections() {
@@ -342,6 +390,15 @@ function selectWard(idx) {
 
   // Update selector visuals
   $$('.ward-card').forEach((c, i) => c.classList.toggle('selected', i === idx));
+
+  // Sync preference radio for the newly selected ward
+  const ward = state.data.wards[idx];
+  if (ward?.notificationPreference) {
+    const radio = document.querySelector(
+      `input[name="notif-pref"][value="${ward.notificationPreference}"]`
+    );
+    if (radio) radio.checked = true;
+  }
 
   // Crossfade content
   const dashboard = $('#ward-dashboard');
@@ -786,7 +843,7 @@ function wireNudgeEvents() {
   });
 
   // Send
-  $('#btn-nudge').addEventListener('click', () => {
+  $('#btn-nudge').addEventListener('click', async () => {
     const msg = input.value.trim();
     if (!msg) return;
 
@@ -795,8 +852,19 @@ function wireNudgeEvents() {
     btn.disabled = true;
     btn.textContent = '...';
 
-    setTimeout(() => {
-      console.log('[DEMO] Nudge sent:', { to: ward.name, message: msg });
+    try {
+      if (state.token) {
+        await apiCall('send-witness-nudge', {
+          token: state.token,
+          wardId: ward.id,
+          message: msg,
+        });
+      } else {
+        // Demo mode fallback
+        await new Promise(r => setTimeout(r, 300));
+        console.log('[DEMO] Nudge sent:', { to: ward.name, message: msg });
+      }
+
       btn.textContent = 'Sent! 💛';
       btn.style.transform = 'scale(1.05)';
       setTimeout(() => { btn.style.transform = ''; }, 200);
@@ -808,7 +876,14 @@ function wireNudgeEvents() {
         btn.textContent = 'Send Nudge →';
         btn.disabled = false;
       }, 2000);
-    }, 300);
+    } catch (err) {
+      console.error('Nudge failed:', err);
+      btn.textContent = 'Failed — try again';
+      setTimeout(() => {
+        btn.textContent = 'Send Nudge →';
+        btn.disabled = false;
+      }, 2000);
+    }
   });
 }
 
@@ -819,11 +894,34 @@ function renderPreferences(ward) {
 }
 
 function wirePrefsEvents() {
-  $('#btn-save-prefs').addEventListener('click', () => {
+  $('#btn-save-prefs').addEventListener('click', async () => {
     const selected = document.querySelector('input[name="notif-pref"]:checked');
-    if (selected) {
-      console.log('[DEMO] Preferences saved:', selected.value);
+    if (!selected) return;
+
+    const btn = $('#btn-save-prefs');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      if (state.token) {
+        const ward = state.data.wards[state.selectedWardIndex];
+        await apiCall('update-witness-preferences', {
+          token: state.token,
+          wardId: ward.id,
+          preference: selected.value,
+        });
+        // Update local state so ward switch remembers the choice
+        ward.notificationPreference = selected.value;
+      } else {
+        console.log('[DEMO] Preferences saved:', selected.value);
+      }
       showToast('Preferences updated ✓');
+    } catch (err) {
+      console.error('Preferences save failed:', err);
+      showToast('Failed to save — try again');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Preferences';
     }
   });
 }
@@ -840,9 +938,32 @@ function wireOptOut() {
     showModal(
       'Are you sure?',
       `${ward.name} will be notified that you've opted out. They can choose a new witness.`,
-      () => {
-        console.log('[DEMO] Opted out of witnessing:', ward.name);
-        showToast('You are no longer witnessing ' + ward.name);
+      async () => {
+        try {
+          if (state.token) {
+            await apiCall('witness-opt-out', {
+              token: state.token,
+              wardId: ward.id,
+            });
+          } else {
+            console.log('[DEMO] Opted out of witnessing:', ward.name);
+          }
+          showToast('You are no longer witnessing ' + ward.name);
+
+          // Remove this ward from data and re-render
+          state.data.wards.splice(state.selectedWardIndex, 1);
+          if (state.data.wards.length === 0) {
+            hideEl('state-dashboard');
+            showEl('state-invalid');
+          } else {
+            state.selectedWardIndex = 0;
+            state.selectedTaskIndex = 0;
+            renderDashboard();
+          }
+        } catch (err) {
+          console.error('Opt-out failed:', err);
+          showToast('Failed — try again');
+        }
       }
     );
   });

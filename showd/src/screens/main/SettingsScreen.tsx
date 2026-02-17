@@ -13,11 +13,14 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
-import { useUser, useIsGuest, useSignOut, useSignIn } from '../../store/authStore';
-import { useConnections, useHydrateWitnesses } from '../../store/witnessStore';
-import { useHydrateTasks } from '../../store/taskStore';
+import { useUser, useSignOut } from '../../store/authStore';
+import { signOut as authSignOut, deleteAccount } from '../../services/auth';
+import { useConnections } from '../../store/witnessStore';
+import { useIsPro, useIsTrialActive, useTrialDaysRemaining } from '../../store/subscriptionStore';
 import { ReminderHealthCheck } from '../../components/permissions/ReminderHealthCheck';
-import { generateMockData } from '../../utils/mockData';
+import { ProBadge } from '../../components/subscription/ProBadge';
+import { useSelectedSoundId } from '../../store/soundStore';
+import { getSoundName } from '../../utils/sounds';
 import type { SettingsScreenProps } from '../../types/navigation';
 
 interface SettingRowProps {
@@ -73,15 +76,15 @@ function SettingRow({
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const user = useUser();
-  const isGuest = useIsGuest();
   const signOut = useSignOut();
-  const signIn = useSignIn();
-  const hydrateTasks = useHydrateTasks();
-  const hydrateWitnesses = useHydrateWitnesses();
   const connections = useConnections();
+  const isPro = useIsPro();
+  const isTrialActive = useIsTrialActive();
+  const trialDaysRemaining = useTrialDaysRemaining();
   const activeWitnessCount = connections.filter(
     (c) => c.status === 'active' || c.status === 'invited',
   ).length;
+  const selectedSoundId = useSelectedSoundId();
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -89,7 +92,14 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: signOut,
+        onPress: async () => {
+          try {
+            await authSignOut();
+            signOut();
+          } catch (_e) {
+            signOut();
+          }
+        },
       },
     ]);
   };
@@ -103,35 +113,17 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         {
           text: 'Delete Account',
           style: 'destructive',
-          onPress: signOut,
+          onPress: async () => {
+            try {
+              await deleteAccount();
+              signOut();
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete account.');
+            }
+          },
         },
       ]
     );
-  };
-
-  const handleResetDemoData = () => {
-    Alert.alert(
-      'Reset Demo Data',
-      'This will replace all tasks, events, and witnesses with fresh demo data.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: () => {
-            const mock = generateMockData();
-            signIn(mock.user);
-            hydrateTasks(mock.tasks, mock.events);
-            hydrateWitnesses(mock.connections);
-            Alert.alert('Done', 'Demo data has been reset.');
-          },
-        },
-      ],
-    );
-  };
-
-  const comingSoon = () => {
-    Alert.alert('Coming Soon', 'This feature will be available in a future update.');
   };
 
   return (
@@ -155,19 +147,21 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <SettingRow
             icon="phone"
             label="Phone number"
-            value={isGuest ? 'Not set' : user?.phone || ''}
+            value={user?.phone || ''}
             showChevron={false}
           />
-          {isGuest && (
-            <>
-              <View style={styles.divider} />
-              <SettingRow
-                icon="shield"
-                label="Verify your phone number"
-                onPress={comingSoon}
-              />
-            </>
-          )}
+        </View>
+
+        {/* Subscription */}
+        <Text style={styles.sectionTitle}>Subscription</Text>
+        <View style={styles.section}>
+          <SettingRow
+            icon="zap"
+            label="Showd Pro"
+            value={isPro ? 'Active' : isTrialActive ? `Trial \u2014 ${trialDaysRemaining}d left` : 'Free'}
+            onPress={() => navigation.navigate('Paywall', { reason: 'pro_required' })}
+            rightElement={isPro ? <ProBadge /> : undefined}
+          />
         </View>
 
         {/* Reminder Health */}
@@ -178,13 +172,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         <Text style={styles.sectionTitle}>Preferences</Text>
         <View style={styles.section}>
           <SettingRow
-            icon="moon"
-            label="Quiet Hours"
-            onPress={() => navigation.navigate('QuietHours')}
-            value={user?.quietHoursEnabled ? 'On' : 'Off'}
-          />
-          <View style={styles.divider} />
-          <SettingRow
             icon="bell"
             label="Default snooze limit"
             value={`${user?.defaultSnoozeLimit || 3}`}
@@ -194,7 +181,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <SettingRow
             icon="volume-2"
             label="Reminder sound"
-            value="Default"
+            value={getSoundName(selectedSoundId)}
             onPress={() => navigation.navigate('ReminderSound')}
           />
           <View style={styles.divider} />
@@ -264,20 +251,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
             showChevron={false}
           />
         </View>
-
-        {/* Demo Mode */}
-        <Text style={styles.sectionTitle}>Demo Mode</Text>
-        <View style={styles.section}>
-          <SettingRow
-            icon="refresh-cw"
-            label="Reset Demo Data"
-            onPress={handleResetDemoData}
-            showChevron={false}
-          />
-        </View>
-        <Text style={styles.demoHint}>
-          Running in demo mode — no cloud sync, no real SMS.
-        </Text>
 
         {/* Danger Zone */}
         <Text style={styles.sectionTitle}>Danger Zone</Text>
@@ -360,12 +333,5 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginLeft: 52,
-  },
-  demoHint: {
-    fontFamily: FontFamily.regular,
-    fontSize: 12,
-    color: Colors.textTertiary,
-    marginTop: Spacing.sm,
-    textAlign: 'center',
   },
 });

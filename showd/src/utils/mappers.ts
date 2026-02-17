@@ -16,7 +16,11 @@ export function userToDb(user: User): Partial<DbUser> {
     quiet_hours_start: user.quietHoursStart ?? null,
     quiet_hours_end: user.quietHoursEnd ?? null,
     default_snooze_limit: user.defaultSnoozeLimit,
-    is_guest: user.isGuest,
+    reminder_sound_id: user.reminderSoundId,
+    custom_sound_url: user.customSoundUrl ?? null,
+    expo_push_token: user.expoPushToken ?? null,
+    permissions_completed: user.permissionsCompleted,
+    oem_setup_completed: user.oemSetupCompleted,
     created_at: user.createdAt,
     updated_at: user.updatedAt,
   };
@@ -33,7 +37,11 @@ export function dbToUser(row: DbUser): User {
     quietHoursStart: row.quiet_hours_start ?? undefined,
     quietHoursEnd: row.quiet_hours_end ?? undefined,
     defaultSnoozeLimit: row.default_snooze_limit,
-    isGuest: row.is_guest,
+    reminderSoundId: row.reminder_sound_id,
+    customSoundUrl: row.custom_sound_url ?? undefined,
+    expoPushToken: row.expo_push_token ?? undefined,
+    permissionsCompleted: row.permissions_completed,
+    oemSetupCompleted: row.oem_setup_completed,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -62,7 +70,10 @@ export function taskToDb(task: Task): Partial<DbTask> {
     witness_connection_id: task.witnessConnectionId ?? null,
     personal_witness_name: task.personalWitnessName ?? null,
     personal_witness_photo_url: task.personalWitnessPhotoUrl ?? null,
+    require_photo_proof: task.requirePhotoProof,
+    reminder_sound_id: task.reminderSoundId ?? null,
     is_active: task.isActive,
+    is_paused: task.isPaused,
     current_streak: task.currentStreak,
     longest_streak: task.longestStreak,
     created_at: task.createdAt,
@@ -91,7 +102,10 @@ export function dbToTask(row: DbTask): Task {
     witnessConnectionId: row.witness_connection_id ?? undefined,
     personalWitnessName: row.personal_witness_name ?? undefined,
     personalWitnessPhotoUrl: row.personal_witness_photo_url ?? undefined,
+    requirePhotoProof: row.require_photo_proof,
+    reminderSoundId: row.reminder_sound_id ?? undefined,
     isActive: row.is_active,
+    isPaused: row.is_paused,
     currentStreak: row.current_streak,
     longestStreak: row.longest_streak,
     createdAt: row.created_at,
@@ -105,6 +119,7 @@ export function taskEventToDb(event: TaskEvent): Partial<DbTaskEvent> {
   return {
     id: event.id,
     task_id: event.taskId,
+    user_id: event.userId,
     scheduled_for: event.scheduledFor,
     status: event.status,
     responded_at: event.respondedAt ?? null,
@@ -119,6 +134,7 @@ export function taskEventToDb(event: TaskEvent): Partial<DbTaskEvent> {
     extensions_used: event.extensionsUsed ?? null,
     total_extension_seconds: event.totalExtensionSeconds ?? null,
     timer_completed: event.timerCompleted ?? null,
+    proof_photo_url: event.proofPhotoUrl ?? null,
     created_at: event.createdAt,
   };
 }
@@ -127,6 +143,7 @@ export function dbToTaskEvent(row: DbTaskEvent): TaskEvent {
   return {
     id: row.id,
     taskId: row.task_id,
+    userId: row.user_id,
     scheduledFor: row.scheduled_for,
     status: row.status as TaskEventStatus,
     respondedAt: row.responded_at ?? undefined,
@@ -141,6 +158,7 @@ export function dbToTaskEvent(row: DbTaskEvent): TaskEvent {
     extensionsUsed: row.extensions_used ?? undefined,
     totalExtensionSeconds: row.total_extension_seconds ?? undefined,
     timerCompleted: row.timer_completed ?? undefined,
+    proofPhotoUrl: row.proof_photo_url ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -163,6 +181,7 @@ export function connectionToDb(conn: WitnessConnection): Partial<DbWitnessConnec
     follow_up_sent_at: conn.followUpSentAt ?? null,
     accepted_at: conn.acceptedAt ?? null,
     declined_at: conn.declinedAt ?? null,
+    suspended_at: conn.suspendedAt ?? null,
   };
 }
 
@@ -182,5 +201,6 @@ export function dbToConnection(row: DbWitnessConnection): WitnessConnection {
     followUpSentAt: row.follow_up_sent_at ?? undefined,
     acceptedAt: row.accepted_at ?? undefined,
     declinedAt: row.declined_at ?? undefined,
+    suspendedAt: row.suspended_at ?? undefined,
   };
 }

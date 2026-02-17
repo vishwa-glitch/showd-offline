@@ -1,13 +1,5 @@
-// ============================================
-// DEMO MODE: Supabase Edge Function calls commented out.
-// Using console.log stubs for demo.
-// Search for [SUPABASE-TODO] to restore.
-// ============================================
 import type { WitnessConnection } from '../types/witness';
-// [SUPABASE-TODO] Restore Edge Function calls:
-// import { callSendWitnessInvite, callNotifyTaskEvent } from './api';
-
-// --- SMS Demo Stubs ---
+// Edge Function calls will be wired up in Phase 8 (Witness System)
 
 interface InviteSMSParams {
   connectionId: string;
@@ -19,7 +11,7 @@ interface InviteSMSParams {
 }
 
 export async function sendWitnessInviteSMS(params: InviteSMSParams): Promise<void> {
-  // [SUPABASE-TODO] Restore: await callSendWitnessInvite({ ...params, isFollowUp: false });
+  // TODO: Wire up Edge Function call for SMS invite
   console.log('[DEMO] Would send SMS invite:', {
     type: 'invite',
     to: params.witnessPhone,
@@ -28,7 +20,7 @@ export async function sendWitnessInviteSMS(params: InviteSMSParams): Promise<voi
 }
 
 export async function sendResendInviteSMS(params: InviteSMSParams): Promise<void> {
-  // [SUPABASE-TODO] Restore: await callSendWitnessInvite({ ...params, isFollowUp: true });
+  // TODO: Wire up Edge Function call for SMS follow-up
   console.log('[DEMO] Would send SMS follow-up:', {
     type: 'follow_up',
     to: params.witnessPhone,
@@ -45,7 +37,7 @@ interface MissedSMSParams {
 }
 
 export async function sendMissedTaskSMS(params: MissedSMSParams): Promise<void> {
-  // [SUPABASE-TODO] Restore: await callNotifyTaskEvent({ ...params, type: 'missed' });
+  // TODO: Wire up Edge Function call for missed notification
   console.log('[DEMO] Would send SMS missed alert:', {
     type: 'missed',
     to: params.witnessPhone,
@@ -58,7 +50,7 @@ interface StruggledSMSParams extends MissedSMSParams {
 }
 
 export async function sendStruggledTaskSMS(params: StruggledSMSParams): Promise<void> {
-  // [SUPABASE-TODO] Restore: await callNotifyTaskEvent({ ...params, type: 'struggled', reason: params.reason });
+  // TODO: Wire up Edge Function call for struggled notification
   console.log('[DEMO] Would send SMS struggled alert:', {
     type: 'struggled',
     to: params.witnessPhone,

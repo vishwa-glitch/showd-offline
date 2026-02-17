@@ -2,25 +2,37 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 
 // Runs every 30 minutes — marks tasks as missed if they are past their
-// reminder window (2 hours) and have no event for today.
+// reminder window (10 minutes) and have no event for today.
 serve(async () => {
   try {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-    const cutoffTime = `${String(twoHoursAgo.getHours()).padStart(2, '0')}:${String(twoHoursAgo.getMinutes()).padStart(2, '0')}`;
+    const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+    const cutoffTime = `${String(tenMinutesAgo.getHours()).padStart(2, '0')}:${String(tenMinutesAgo.getMinutes()).padStart(2, '0')}`;
 
     // Get active tasks whose reminder time is before the cutoff
     const { data: tasks, error } = await supabaseAdmin
       .from('tasks')
-      .select('id, user_id, reminder_time')
+      .select('id, user_id, reminder_time, created_at')
       .eq('is_active', true)
       .lte('reminder_time', cutoffTime);
 
     if (error) throw error;
 
     let marked = 0;
+    let skipped = 0;
     for (const task of tasks || []) {
+      // Skip tasks created after today's reminder time — the user hasn't had
+      // a fair chance to complete them yet (e.g. task created at 6 PM with
+      // reminder_time set to 4 PM should NOT be marked missed today).
+      const [rH, rM] = task.reminder_time.split(':').map(Number);
+      const todayReminderTime = new Date(now);
+      todayReminderTime.setHours(rH, rM, 0, 0);
+      const taskCreatedAt = new Date(task.created_at);
+      if (taskCreatedAt >= todayReminderTime) {
+        skipped++;
+        continue;
+      }
       // Check if there's already an event today for this task
       const { data: existing } = await supabaseAdmin
         .from('task_events')
@@ -53,7 +65,7 @@ serve(async () => {
       marked++;
     }
 
-    return new Response(JSON.stringify({ marked, checked: tasks?.length || 0 }), {
+    return new Response(JSON.stringify({ marked, skipped, checked: tasks?.length || 0 }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {

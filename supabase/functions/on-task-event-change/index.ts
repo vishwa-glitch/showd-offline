@@ -15,7 +15,7 @@ serve(async (req) => {
       reason,
     } = await req.json();
 
-    if (!['missed', 'struggled'].includes(type)) {
+    if (!['missed', 'struggling'].includes(type)) {
       return new Response(
         JSON.stringify({ error: 'Invalid event type' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
@@ -30,13 +30,12 @@ serve(async (req) => {
 
     // Log SMS
     await supabaseAdmin.from('sms_log').insert({
-      connection_id: connectionId,
-      recipient_phone: witnessPhone,
-      message_type: `task_${type}`,
+      witness_connection_id: connectionId,
+      to_phone: witnessPhone,
+      type: type === 'struggling' ? 'struggling' : 'missed',
       message_body: body,
-      twilio_sid: result.sid,
-      segments: parseInt(result.num_segments, 10) || 1,
-      status: result.status,
+      twilio_message_sid: result.sid,
+      segment_count: parseInt(result.num_segments, 10) || 1,
     });
 
     return new Response(JSON.stringify({ success: true, sid: result.sid }), {

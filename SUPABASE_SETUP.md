@@ -4,7 +4,7 @@ Complete guide for configuring your Supabase project. Run these steps in order.
 
 ---
 
-## 1. Authentication — Phone OTP
+## 1. Authentication — Phone OTP via Twilio
 
 Go to **Authentication > Providers > Phone** in the Supabase dashboard.
 
@@ -15,19 +15,27 @@ Go to **Authentication > Providers > Phone** in the Supabase dashboard.
    - **Twilio Account SID**: your SID from Twilio console
    - **Twilio Auth Token**: your auth token
    - **Twilio Message Service SID** or **Twilio Phone Number**: your Twilio sending number
+   - **SMS Message**: `Your Showd verification code is: {{ .Code }}`
 5. Save
 
+Under **Authentication > Rate Limits**:
+- **SMS OTP rate limit**: 60 seconds per phone number (default — prevents spam)
+- These built-in limits replace Firebase's anti-abuse protection
+
 > The app uses `supabase.auth.signInWithOtp({ phone })` and `supabase.auth.verifyOtp({ phone, token, type: 'sms' })`.
+> No custom Edge Function is involved in the auth flow — Supabase handles user creation and session management natively.
+
+**Important**: This is the same Twilio account used for witness SMS. Auth OTP goes through Supabase's built-in provider; witness SMS goes through the Edge Functions. They share the Twilio account but use different code paths.
 
 ---
 
-## 2. Database Tables — SQL Migration
+## 2. Database Tables & Row Level Security — Complete Schema
 
-Go to **SQL Editor** and run the following migration:
+Go to **SQL Editor** and run this complete migration (creates tables + enables RLS in one step):
 
 ```sql
 -- ============================================
--- Showd Database Schema
+-- Showd Database Schema (v3)
 -- ============================================
 
 -- Users
@@ -41,7 +49,11 @@ CREATE TABLE IF NOT EXISTS public.users (
   quiet_hours_start TEXT,
   quiet_hours_end TEXT,
   default_snooze_limit INTEGER NOT NULL DEFAULT 3,
-  is_guest BOOLEAN NOT NULL DEFAULT FALSE,
+  reminder_sound_id TEXT NOT NULL DEFAULT 'gentle_pulse',
+  custom_sound_url TEXT,
+  expo_push_token TEXT,
+  permissions_completed BOOLEAN NOT NULL DEFAULT FALSE,
+  oem_setup_completed BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -67,19 +79,23 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   witness_connection_id UUID,
   personal_witness_name TEXT,
   personal_witness_photo_url TEXT,
+  require_photo_proof BOOLEAN NOT NULL DEFAULT FALSE,
+  reminder_sound_id TEXT,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  is_paused BOOLEAN NOT NULL DEFAULT FALSE,
   current_streak INTEGER NOT NULL DEFAULT 0,
   longest_streak INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_tasks_user_id ON public.tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON public.tasks(user_id);
 
 -- Task Events
 CREATE TABLE IF NOT EXISTS public.task_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   scheduled_for TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   responded_at TIMESTAMPTZ,
@@ -94,11 +110,13 @@ CREATE TABLE IF NOT EXISTS public.task_events (
   extensions_used INTEGER,
   total_extension_seconds INTEGER,
   timer_completed BOOLEAN,
+  proof_photo_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_task_events_task_id ON public.task_events(task_id);
-CREATE INDEX idx_task_events_scheduled ON public.task_events(scheduled_for);
+CREATE INDEX IF NOT EXISTS idx_task_events_task_id ON public.task_events(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_events_user_id ON public.task_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_task_events_scheduled ON public.task_events(scheduled_for);
 
 -- Witness Connections
 CREATE TABLE IF NOT EXISTS public.witness_connections (
@@ -115,27 +133,28 @@ CREATE TABLE IF NOT EXISTS public.witness_connections (
   invited_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   follow_up_sent_at TIMESTAMPTZ,
   accepted_at TIMESTAMPTZ,
-  declined_at TIMESTAMPTZ
+  declined_at TIMESTAMPTZ,
+  suspended_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_witness_connections_task_doer ON public.witness_connections(task_doer_id);
-CREATE INDEX idx_witness_connections_invite_token ON public.witness_connections(invite_token);
+CREATE INDEX IF NOT EXISTS idx_witness_connections_task_doer ON public.witness_connections(task_doer_id);
+CREATE INDEX IF NOT EXISTS idx_witness_connections_invite_token ON public.witness_connections(invite_token);
 
 -- SMS Log (for cost tracking and debugging)
 CREATE TABLE IF NOT EXISTS public.sms_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  connection_id UUID REFERENCES public.witness_connections(id) ON DELETE SET NULL,
-  recipient_phone TEXT NOT NULL,
-  message_type TEXT NOT NULL,
+  witness_connection_id UUID REFERENCES public.witness_connections(id) ON DELETE SET NULL,
+  to_phone TEXT NOT NULL,
+  type TEXT NOT NULL,
   message_body TEXT NOT NULL,
-  twilio_sid TEXT,
-  segments INTEGER NOT NULL DEFAULT 1,
-  status TEXT NOT NULL DEFAULT 'sent',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  twilio_message_sid TEXT,
+  segment_count INTEGER,
+  cost_usd NUMERIC(8,4),
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_sms_log_connection ON public.sms_log(connection_id);
-CREATE INDEX idx_sms_log_created ON public.sms_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_sms_log_connection ON public.sms_log(witness_connection_id);
+CREATE INDEX IF NOT EXISTS idx_sms_log_sent_at ON public.sms_log(sent_at);
 
 -- Nudges
 CREATE TABLE IF NOT EXISTS public.nudges (
@@ -149,16 +168,8 @@ CREATE TABLE IF NOT EXISTS public.nudges (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_nudges_to_user ON public.nudges(to_user_id);
-```
+CREATE INDEX IF NOT EXISTS idx_nudges_to_user ON public.nudges(to_user_id);
 
----
-
-## 3. Row Level Security (RLS)
-
-Run this SQL after creating tables:
-
-```sql
 -- Enable RLS on all tables
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
@@ -168,105 +179,89 @@ ALTER TABLE public.sms_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.nudges ENABLE ROW LEVEL SECURITY;
 
 -- ─── Users ───
-CREATE POLICY "Users can read own profile"
+CREATE POLICY IF NOT EXISTS "Users can read own profile"
   ON public.users FOR SELECT
-  USING (auth.uid() = id);
+  USING ((SELECT auth.uid()) = id);
 
-CREATE POLICY "Users can insert own profile"
+CREATE POLICY IF NOT EXISTS "Users can insert own profile"
   ON public.users FOR INSERT
-  WITH CHECK (auth.uid() = id);
+  WITH CHECK ((SELECT auth.uid()) = id);
 
-CREATE POLICY "Users can update own profile"
+CREATE POLICY IF NOT EXISTS "Users can update own profile"
   ON public.users FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+  USING ((SELECT auth.uid()) = id)
+  WITH CHECK ((SELECT auth.uid()) = id);
 
 -- ─── Tasks ───
-CREATE POLICY "Users can read own tasks"
+CREATE POLICY IF NOT EXISTS "Users can read own tasks"
   ON public.tasks FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can insert own tasks"
+CREATE POLICY IF NOT EXISTS "Users can insert own tasks"
   ON public.tasks FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can update own tasks"
+CREATE POLICY IF NOT EXISTS "Users can update own tasks"
   ON public.tasks FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((SELECT auth.uid()) = user_id)
+  WITH CHECK ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can delete own tasks"
+CREATE POLICY IF NOT EXISTS "Users can delete own tasks"
   ON public.tasks FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((SELECT auth.uid()) = user_id);
 
 -- ─── Task Events ───
-CREATE POLICY "Users can read own task events"
+CREATE POLICY IF NOT EXISTS "Users can read own task events"
   ON public.task_events FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.tasks
-      WHERE tasks.id = task_events.task_id
-      AND tasks.user_id = auth.uid()
-    )
-  );
+  USING ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can insert own task events"
+CREATE POLICY IF NOT EXISTS "Users can insert own task events"
   ON public.task_events FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.tasks
-      WHERE tasks.id = task_events.task_id
-      AND tasks.user_id = auth.uid()
-    )
-  );
+  WITH CHECK ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can update own task events"
+CREATE POLICY IF NOT EXISTS "Users can update own task events"
   ON public.task_events FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.tasks
-      WHERE tasks.id = task_events.task_id
-      AND tasks.user_id = auth.uid()
-    )
-  );
+  USING ((SELECT auth.uid()) = user_id);
 
 -- ─── Witness Connections ───
-CREATE POLICY "Task owners can read own connections"
+CREATE POLICY IF NOT EXISTS "Task owners can read own connections"
   ON public.witness_connections FOR SELECT
-  USING (auth.uid() = task_doer_id);
+  USING ((SELECT auth.uid()) = task_doer_id);
 
-CREATE POLICY "Task owners can insert connections"
+CREATE POLICY IF NOT EXISTS "Task owners can insert connections"
   ON public.witness_connections FOR INSERT
-  WITH CHECK (auth.uid() = task_doer_id);
+  WITH CHECK ((SELECT auth.uid()) = task_doer_id);
 
-CREATE POLICY "Task owners can update connections"
+CREATE POLICY IF NOT EXISTS "Task owners can update connections"
   ON public.witness_connections FOR UPDATE
-  USING (auth.uid() = task_doer_id);
+  USING ((SELECT auth.uid()) = task_doer_id);
 
-CREATE POLICY "Task owners can delete connections"
+CREATE POLICY IF NOT EXISTS "Task owners can delete connections"
   ON public.witness_connections FOR DELETE
-  USING (auth.uid() = task_doer_id);
+  USING ((SELECT auth.uid()) = task_doer_id);
 
--- ─── SMS Log (read-only for users, insert via service role) ───
-CREATE POLICY "Users can read own SMS logs"
+-- ─── SMS Log (read-only for users, inserts via service role in Edge Functions) ───
+CREATE POLICY IF NOT EXISTS "Users can read own SMS logs"
   ON public.sms_log FOR SELECT
   USING (
     EXISTS (
       SELECT 1 FROM public.witness_connections
-      WHERE witness_connections.id = sms_log.connection_id
-      AND witness_connections.task_doer_id = auth.uid()
+      WHERE witness_connections.id = sms_log.witness_connection_id
+      AND witness_connections.task_doer_id = (SELECT auth.uid())
     )
   );
 
 -- ─── Nudges ───
-CREATE POLICY "Users can read own nudges"
+CREATE POLICY IF NOT EXISTS "Users can read own nudges"
   ON public.nudges FOR SELECT
-  USING (auth.uid() = to_user_id);
+  USING ((SELECT auth.uid()) = to_user_id);
 
-CREATE POLICY "Users can update own nudges"
+CREATE POLICY IF NOT EXISTS "Users can update own nudges"
   ON public.nudges FOR UPDATE
-  USING (auth.uid() = to_user_id);
+  USING ((SELECT auth.uid()) = to_user_id);
 ```
+
+> **Note**: This script is **idempotent** (safe to re-run). The `IF NOT EXISTS` clauses ensure it won't error if tables/indexes/policies already exist.
 
 ---
 
@@ -283,6 +278,8 @@ supabase secrets set APP_URL=https://showd.app
 
 These secrets are available as `Deno.env.get()` in all Edge Functions.
 
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are automatically available in Edge Functions — no need to set them manually.
+
 ---
 
 ## 5. Deploy Edge Functions
@@ -290,14 +287,23 @@ These secrets are available as `Deno.env.get()` in all Edge Functions.
 From the project root:
 
 ```bash
-# API endpoints (called from the app)
+# Account management
+supabase functions deploy delete-account
+
+# Witness system (called from the app)
 supabase functions deploy send-witness-invite
 supabase functions deploy witness-respond
 supabase functions deploy on-task-event-change
 
+# Witness web page backends
+supabase functions deploy get-witness-invite
+supabase functions deploy get-witness-dashboard
+supabase functions deploy send-witness-nudge
+supabase functions deploy update-witness-preferences
+supabase functions deploy witness-opt-out
+
 # Scheduled functions (called by pg_cron)
 supabase functions deploy scheduled-follow-up-invites
-supabase functions deploy scheduled-daily-summary
 supabase functions deploy scheduled-weekly-summary
 supabase functions deploy scheduled-streak-check
 supabase functions deploy scheduled-missed-task-marker
@@ -325,22 +331,6 @@ SELECT cron.schedule(
   $$
   SELECT net.http_post(
     url := current_setting('app.settings.supabase_url') || '/functions/v1/scheduled-follow-up-invites',
-    headers := jsonb_build_object(
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
-      'Content-Type', 'application/json'
-    ),
-    body := '{}'::jsonb
-  );
-  $$
-);
-
--- Daily summary — daily at 9pm UTC
-SELECT cron.schedule(
-  'daily-summary',
-  '0 21 * * *',
-  $$
-  SELECT net.http_post(
-    url := current_setting('app.settings.supabase_url') || '/functions/v1/scheduled-daily-summary',
     headers := jsonb_build_object(
       'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
       'Content-Type', 'application/json'
@@ -399,7 +389,7 @@ SELECT cron.schedule(
 );
 ```
 
-> **Note**: Replace `current_setting('app.settings.supabase_url')` and `current_setting('app.settings.service_role_key')` with your actual values if custom settings are not configured. You can set them via:
+> **Note**: Set the database config values first:
 > ```sql
 > ALTER DATABASE postgres SET app.settings.supabase_url = 'https://your-project.supabase.co';
 > ALTER DATABASE postgres SET app.settings.service_role_key = 'your-service-role-key';
@@ -442,24 +432,24 @@ Query the `sms_log` table to track costs:
 
 ```sql
 -- Total segments sent today
-SELECT SUM(segments) as total_segments,
+SELECT SUM(segment_count) as total_segments,
        COUNT(*) as total_messages
 FROM public.sms_log
-WHERE created_at >= CURRENT_DATE;
+WHERE sent_at >= CURRENT_DATE;
 
 -- Breakdown by message type
-SELECT message_type,
+SELECT type,
        COUNT(*) as count,
-       SUM(segments) as segments
+       SUM(segment_count) as segments
 FROM public.sms_log
-WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
-GROUP BY message_type
+WHERE sent_at >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY type
 ORDER BY segments DESC;
 
 -- Cost estimate (Twilio: ~$0.0079/segment for US numbers)
-SELECT SUM(segments) * 0.0079 as estimated_cost_usd
+SELECT SUM(segment_count) * 0.0079 as estimated_cost_usd
 FROM public.sms_log
-WHERE created_at >= CURRENT_DATE - INTERVAL '30 days';
+WHERE sent_at >= CURRENT_DATE - INTERVAL '30 days';
 ```
 
 ---
@@ -467,10 +457,11 @@ WHERE created_at >= CURRENT_DATE - INTERVAL '30 days';
 ## Summary Checklist
 
 - [ ] Phone OTP provider enabled with Twilio credentials
+- [ ] Rate limits configured (60s per phone number)
 - [ ] All 6 tables created (users, tasks, task_events, witness_connections, sms_log, nudges)
 - [ ] RLS enabled and policies created for all tables
 - [ ] Edge Function secrets set (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, APP_URL)
-- [ ] All 8 Edge Functions deployed
+- [ ] All 13 Edge Functions deployed (delete-account, send-witness-invite, witness-respond, on-task-event-change, get-witness-invite, get-witness-dashboard, send-witness-nudge, update-witness-preferences, witness-opt-out, + 4 scheduled)
 - [ ] pg_cron and pg_net extensions enabled
-- [ ] 5 cron jobs scheduled
+- [ ] 4 cron jobs scheduled (follow-up-invites, weekly-summary, streak-check, missed-task-marker)
 - [ ] App `.env` configured with Supabase URL and anon key

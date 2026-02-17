@@ -11,7 +11,11 @@ export interface DbUser {
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
   default_snooze_limit: number;
-  is_guest: boolean;
+  reminder_sound_id: string;
+  custom_sound_url: string | null;
+  expo_push_token: string | null;
+  permissions_completed: boolean;
+  oem_setup_completed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -36,7 +40,10 @@ export interface DbTask {
   witness_connection_id: string | null;
   personal_witness_name: string | null;
   personal_witness_photo_url: string | null;
+  require_photo_proof: boolean;
+  reminder_sound_id: string | null;
   is_active: boolean;
+  is_paused: boolean;
   current_streak: number;
   longest_streak: number;
   created_at: string;
@@ -46,6 +53,7 @@ export interface DbTask {
 export interface DbTaskEvent {
   id: string;
   task_id: string;
+  user_id: string;
   scheduled_for: string;
   status: string;
   responded_at: string | null;
@@ -60,6 +68,7 @@ export interface DbTaskEvent {
   extensions_used: number | null;
   total_extension_seconds: number | null;
   timer_completed: boolean | null;
+  proof_photo_url: string | null;
   created_at: string;
 }
 
@@ -78,18 +87,19 @@ export interface DbWitnessConnection {
   follow_up_sent_at: string | null;
   accepted_at: string | null;
   declined_at: string | null;
+  suspended_at: string | null;
 }
 
 export interface DbSmsLog {
   id: string;
-  connection_id: string | null;
-  recipient_phone: string;
-  message_type: string;
+  witness_connection_id: string | null;
+  type: string;
+  to_phone: string;
   message_body: string;
-  twilio_sid: string | null;
-  segments: number;
-  status: string;
-  created_at: string;
+  twilio_message_sid: string | null;
+  segment_count: number | null;
+  cost_usd: number | null;
+  sent_at: string;
 }
 
 export interface DbNudge {
@@ -119,7 +129,7 @@ export interface Database {
       };
       task_events: {
         Row: DbTaskEvent;
-        Insert: Partial<DbTaskEvent> & Pick<DbTaskEvent, 'id' | 'task_id' | 'scheduled_for' | 'status'>;
+        Insert: Partial<DbTaskEvent> & Pick<DbTaskEvent, 'id' | 'task_id' | 'user_id' | 'scheduled_for' | 'status'>;
         Update: Partial<DbTaskEvent>;
       };
       witness_connections: {
@@ -129,7 +139,7 @@ export interface Database {
       };
       sms_log: {
         Row: DbSmsLog;
-        Insert: Partial<DbSmsLog> & Pick<DbSmsLog, 'recipient_phone' | 'message_type' | 'message_body'>;
+        Insert: Partial<DbSmsLog> & Pick<DbSmsLog, 'to_phone' | 'type' | 'message_body'>;
         Update: Partial<DbSmsLog>;
       };
       nudges: {

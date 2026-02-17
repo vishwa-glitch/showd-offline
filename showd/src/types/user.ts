@@ -8,7 +8,11 @@ export interface User {
   quietHoursStart?: string;
   quietHoursEnd?: string;
   defaultSnoozeLimit: number;
-  isGuest: boolean;
+  reminderSoundId: string;
+  customSoundUrl?: string;
+  expoPushToken?: string;
+  permissionsCompleted: boolean;
+  oemSetupCompleted: boolean;
   createdAt: string;
   updatedAt: string;
 }

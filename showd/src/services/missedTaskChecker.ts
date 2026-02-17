@@ -40,6 +40,12 @@ export function getTasksToMarkMissed(
     // If we haven't passed the deadline yet, skip
     if (now < deadline) continue;
 
+    // Skip tasks created after today's reminder time — the user just created
+    // this task and hasn't had a chance to complete it yet
+    // (e.g. task created at 10:46 PM with reminder at 8:00 AM)
+    const taskCreatedAt = new Date(task.createdAt);
+    if (taskCreatedAt >= reminderDate) continue;
+
     // Check if any terminal event exists for today
     const hasTerminalEvent = events.some(
       (e) =>

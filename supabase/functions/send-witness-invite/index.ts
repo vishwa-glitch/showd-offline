@@ -25,13 +25,12 @@ serve(async (req) => {
 
     // Log SMS
     await supabaseAdmin.from('sms_log').insert({
-      connection_id: connectionId,
-      recipient_phone: witnessPhone,
-      message_type: isFollowUp ? 'follow_up_invite' : 'initial_invite',
+      witness_connection_id: connectionId,
+      to_phone: witnessPhone,
+      type: isFollowUp ? 'followup' : 'invite',
       message_body: body,
-      twilio_sid: result.sid,
-      segments: parseInt(result.num_segments, 10) || 1,
-      status: result.status,
+      twilio_message_sid: result.sid,
+      segment_count: parseInt(result.num_segments, 10) || 1,
     });
 
     // Update follow_up_sent_at if it's a follow-up

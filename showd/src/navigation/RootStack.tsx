@@ -15,6 +15,7 @@ import { PeopleISupportScreen } from '../screens/settings/PeopleISupportScreen';
 import { SendFeedbackScreen } from '../screens/settings/SendFeedbackScreen';
 import { PrivacyPolicyScreen } from '../screens/settings/PrivacyPolicyScreen';
 import { TermsOfServiceScreen } from '../screens/settings/TermsOfServiceScreen';
+import { PaywallScreen } from '../screens/modals/PaywallScreen';
 import { Colors } from '../utils/colors';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -112,6 +113,16 @@ export function RootStack() {
         name="TermsOfService"
         component={TermsOfServiceScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Paywall"
+        component={PaywallScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          gestureEnabled: true,
+          contentStyle: { backgroundColor: Colors.background },
+        }}
       />
     </Stack.Navigator>
   );

@@ -3,7 +3,7 @@ import { userToDb, taskToDb, taskEventToDb, connectionToDb } from '../utils/mapp
 import type { User } from '../types/user';
 import type { Task, TaskEvent } from '../types/task';
 import type { WitnessConnection } from '../types/witness';
-import type { DbSmsLog } from '../types/database';
+import type { DbUser } from '../types/database';
 
 // ── Users ──
 
@@ -14,6 +14,10 @@ export async function getUser(id: string) {
 export async function upsertUser(user: User) {
   const row = userToDb(user);
   return supabase.from('users').upsert(row as any).select().single();
+}
+
+export async function updateUserFields(userId: string, updates: Partial<DbUser>) {
+  return supabase.from('users').update(updates).eq('id', userId);
 }
 
 // ── Tasks ──
@@ -36,8 +40,8 @@ export async function deleteDbTask(taskId: string) {
 export async function getUserEvents(userId: string) {
   return supabase
     .from('task_events')
-    .select('*, tasks!inner(user_id)')
-    .eq('tasks.user_id', userId);
+    .select('*')
+    .eq('user_id', userId);
 }
 
 export async function getEventsByTaskIds(taskIds: readonly string[]) {
@@ -66,6 +70,7 @@ export async function updateEvent(id: string, updates: Partial<TaskEvent>) {
   if (updates.extensionsUsed !== undefined) partial.extensions_used = updates.extensionsUsed;
   if (updates.totalExtensionSeconds !== undefined) partial.total_extension_seconds = updates.totalExtensionSeconds;
   if (updates.timerCompleted !== undefined) partial.timer_completed = updates.timerCompleted;
+  if (updates.proofPhotoUrl !== undefined) partial.proof_photo_url = updates.proofPhotoUrl;
 
   return supabase.from('task_events').update(partial as any).eq('id', id).select().single();
 }
@@ -87,6 +92,14 @@ export async function deleteConnection(id: string) {
 
 // ── SMS Log ──
 
-export async function insertSmsLog(log: Omit<DbSmsLog, 'id' | 'created_at'>) {
+export async function insertSmsLog(log: {
+  witness_connection_id?: string;
+  type: string;
+  to_phone: string;
+  message_body: string;
+  twilio_message_sid?: string;
+  segment_count?: number;
+  cost_usd?: number;
+}) {
   return supabase.from('sms_log').insert(log as any).select().single();
 }

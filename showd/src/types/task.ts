@@ -32,7 +32,10 @@ export interface Task {
   witnessConnectionId?: string;
   personalWitnessName?: string;
   personalWitnessPhotoUrl?: string;
+  requirePhotoProof: boolean;
+  reminderSoundId?: string;
   isActive: boolean;
+  isPaused: boolean;
   currentStreak: number;
   longestStreak: number;
   createdAt: string;
@@ -42,6 +45,7 @@ export interface Task {
 export interface TaskEvent {
   id: string;
   taskId: string;
+  userId: string;
   scheduledFor: string;
   status: TaskEventStatus;
   respondedAt?: string;
@@ -57,6 +61,8 @@ export interface TaskEvent {
   extensionsUsed?: number;
   totalExtensionSeconds?: number;
   timerCompleted?: boolean;
+  // Photo proof
+  proofPhotoUrl?: string;
   createdAt: string;
 }
 
@@ -76,6 +82,8 @@ export interface TaskFormData {
   witnessRelationship: string;
   personalWitnessName: string;
   durationMinutes: number | null;
+  requirePhotoProof: boolean;
+  reminderSoundId: string | null;
 }
 
 export const TASK_CATEGORIES: { key: TaskCategory; label: string; icon: string }[] = [
@@ -103,4 +111,6 @@ export const DEFAULT_FORM_DATA: TaskFormData = {
   witnessRelationship: '',
   personalWitnessName: '',
   durationMinutes: null,
+  requirePhotoProof: false,
+  reminderSoundId: null,
 };

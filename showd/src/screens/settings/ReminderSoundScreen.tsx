@@ -1,40 +1,53 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
+import { BUILT_IN_SOUNDS, DEFAULT_SOUND_ID } from '../../utils/sounds';
+import { useSelectedSoundId, useSetSelectedSound } from '../../store/soundStore';
+import { previewSound, stopSound } from '../../services/soundPlayer';
 import type { ReminderSoundScreenProps } from '../../types/navigation';
 
-const SOUND_OPTIONS = [
-  { id: 'default', label: 'Default', caption: undefined },
-  { id: 'gentle_chime', label: 'Gentle Chime', caption: undefined },
-  { id: 'urgent_bell', label: 'Urgent Bell', caption: undefined },
-  { id: 'classic_ring', label: 'Classic Ring', caption: undefined },
-  { id: 'soft_pulse', label: 'Soft Pulse', caption: undefined },
-  { id: 'silent', label: 'Silent', caption: 'Vibration only. Make sure vibration is enabled.' },
-] as const;
-
-type SoundId = (typeof SOUND_OPTIONS)[number]['id'];
-
 export function ReminderSoundScreen({ navigation }: ReminderSoundScreenProps) {
-  const [selected, setSelected] = useState<SoundId>('default');
+  const selectedSoundId = useSelectedSoundId();
+  const setSelectedSound = useSetSelectedSound();
 
-  const handleSelect = (id: SoundId) => {
-    if (id === selected) return;
-    setSelected(id);
-    Alert.alert('Updated', `Reminder sound set to ${SOUND_OPTIONS.find((s) => s.id === id)?.label}`);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
+
+  // Stop any preview sound when leaving the screen
+  useEffect(() => {
+    return () => {
+      stopSound();
+    };
+  }, []);
+
+  const handleSelect = (soundId: string) => {
+    if (soundId === selectedSoundId) return;
+    setSelectedSound(soundId);
   };
 
-  const handlePreview = (id: SoundId) => {
-    console.log('[TODO] Play sound preview:', id);
+  const handlePreview = async (soundId: string) => {
+    // If already previewing this sound, stop it
+    if (previewingId === soundId) {
+      await stopSound();
+      setPreviewingId(null);
+      return;
+    }
+
+    setPreviewingId(soundId);
+    const sound = BUILT_IN_SOUNDS.find((s) => s.id === soundId);
+    const duration = (sound?.loopDuration ?? 3) * 1000;
+    await previewSound(soundId, duration);
+    // Reset icon after preview finishes
+    setTimeout(() => setPreviewingId(null), duration);
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => { stopSound(); navigation.goBack(); }}>
           <Feather name="arrow-left" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Reminder Sound</Text>
@@ -46,49 +59,53 @@ export function ReminderSoundScreen({ navigation }: ReminderSoundScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.explanation}>
-          This sound plays when a reminder takes over your screen.
+          Choose the sound for all your reminders.
         </Text>
 
         <View style={styles.list}>
-          {SOUND_OPTIONS.map((option, index) => {
-            const isSelected = option.id === selected;
+          {BUILT_IN_SOUNDS.map((sound, index) => {
+            const isSelected = sound.id === selectedSoundId;
             return (
-              <React.Fragment key={option.id}>
+              <React.Fragment key={sound.id}>
                 <TouchableOpacity
                   style={[styles.row, isSelected && styles.rowSelected]}
                   activeOpacity={0.6}
-                  onPress={() => handleSelect(option.id)}
+                  onPress={() => handleSelect(sound.id)}
                 >
                   <View style={styles.rowLeft}>
                     <Text style={[styles.rowLabel, isSelected && styles.rowLabelSelected]}>
-                      {option.label}
+                      {sound.name}
                     </Text>
-                    {option.caption && (
-                      <Text style={styles.rowCaption}>{option.caption}</Text>
-                    )}
+                    <Text style={styles.rowCaption}>{sound.description}</Text>
                   </View>
 
                   <View style={styles.rowRight}>
-                    {option.id !== 'silent' && (
-                      <TouchableOpacity
-                        onPress={() => handlePreview(option.id)}
-                        hitSlop={8}
-                        style={styles.playButton}
-                      >
-                        <Feather name="volume-2" size={16} color={Colors.textTertiary} />
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      onPress={() => handlePreview(sound.id)}
+                      hitSlop={8}
+                      style={styles.playButton}
+                    >
+                      <Feather
+                        name={previewingId === sound.id ? 'volume-2' : 'play'}
+                        size={16}
+                        color={previewingId === sound.id ? Colors.primary : Colors.textTertiary}
+                      />
+                    </TouchableOpacity>
 
                     <View style={[styles.radio, isSelected && styles.radioSelected]}>
                       {isSelected && <View style={styles.radioDot} />}
                     </View>
                   </View>
                 </TouchableOpacity>
-                {index < SOUND_OPTIONS.length - 1 && <View style={styles.divider} />}
+                {index < BUILT_IN_SOUNDS.length - 1 && <View style={styles.divider} />}
               </React.Fragment>
             );
           })}
         </View>
+
+        <Text style={styles.footerNote}>
+          This sound will play on repeat when your full-screen reminder appears.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -119,6 +136,14 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.xl,
   },
+  sectionLabel: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
+  },
   list: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
@@ -131,7 +156,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.base,
-    minHeight: 48,
+    minHeight: 56,
   },
   rowSelected: {
     backgroundColor: Colors.primaryLight,
@@ -182,5 +207,11 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginLeft: Spacing.base,
+  },
+  footerNote: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+    marginTop: Spacing.lg,
+    textAlign: 'center',
   },
 });

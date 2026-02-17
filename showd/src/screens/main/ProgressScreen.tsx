@@ -9,6 +9,7 @@ import { Card } from '../../components/ui/Card';
 import { CalendarGrid } from '../../components/progress/CalendarGrid';
 import { DayDetail } from '../../components/progress/DayDetail';
 import { useTasks, useEvents, useCompletedTodayCount } from '../../store/taskStore';
+import { useIsPro, useIsTrialActive } from '../../store/subscriptionStore';
 import {
   formatMonthYear,
   getCompletionRate,
@@ -35,10 +36,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: Colors.categoryOther,
 };
 
-export function ProgressScreen() {
+export function ProgressScreen({ navigation }: any) {
   const tasks = useTasks();
   const events = useEvents();
   const completedCount = useCompletedTodayCount();
+  const isPro = useIsPro();
+  const isTrialActive = useIsTrialActive();
+  const hasFullProgress = isPro || isTrialActive;
 
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -48,7 +52,12 @@ export function ProgressScreen() {
   const maxStreak = tasks.reduce((max, t) => Math.max(max, t.currentStreak), 0);
   const longestStreak = tasks.reduce((max, t) => Math.max(max, t.longestStreak), 0);
 
+  // Free users can only see the current month (7-day rolling window)
   const goToPrevMonth = () => {
+    if (!hasFullProgress) {
+      navigation?.navigate?.('Paywall', { reason: 'full_progress' });
+      return;
+    }
     if (selectedMonth === 0) {
       setSelectedMonth(11);
       setSelectedYear((y) => y - 1);
@@ -147,6 +156,20 @@ export function ProgressScreen() {
             />
           </Card>
         </View>
+
+        {/* Free user upgrade hint */}
+        {!hasFullProgress && (
+          <TouchableOpacity
+            style={styles.upgradeHint}
+            onPress={() => navigation?.navigate?.('Paywall', { reason: 'full_progress' })}
+          >
+            <Feather name="lock" size={14} color={Colors.proGold} />
+            <Text style={styles.upgradeHintText}>
+              Viewing last 7 days. Go Pro for full history.
+            </Text>
+            <Feather name="chevron-right" size={14} color={Colors.proGold} />
+          </TouchableOpacity>
+        )}
 
         {/* Day Detail */}
         {selectedDay !== null && (
@@ -347,5 +370,21 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textTertiary,
     marginTop: Spacing.xs,
+  },
+  upgradeHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.proGoldLight,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  upgradeHintText: {
+    fontFamily: FontFamily.medium,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    flex: 1,
   },
 });

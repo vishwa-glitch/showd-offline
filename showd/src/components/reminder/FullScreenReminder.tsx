@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { playSound, stopSound } from '../../services/soundPlayer';
+import { getSelectedSoundId } from '../../store/soundStore';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -88,6 +90,15 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
     return () => handler.remove();
   }, []);
 
+  // Play selected reminder sound on loop
+  useEffect(() => {
+    const soundId = getSelectedSoundId();
+    playSound(soundId, true);
+    return () => {
+      stopSound();
+    };
+  }, []);
+
   const category = TASK_CATEGORIES.find((c) => c.key === task.category);
   const categoryIcon = (category?.icon || 'circle') as keyof typeof Feather.glyphMap;
 
@@ -107,11 +118,11 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
 
   const initials = witnessName
     ? witnessName
-        .split(' ')
-        .map((w) => w[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
+      .split(' ')
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
     : null;
 
   const handleDone = useCallback(async () => {
@@ -127,6 +138,7 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
     const eventId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     addEvent({
       taskId: task.id,
+      userId: task.userId,
       scheduledFor: now,
       status: 'in_progress',
       respondedAt: now,
@@ -147,7 +159,7 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
     if (!success) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     snoozeReminder(task.id);
-    rescheduleAfterSnooze(task).catch(() => {});
+    rescheduleAfterSnooze(task).catch(() => { });
   }, [task, snoozeTask, snoozeReminder]);
 
   const handleStruggling = useCallback(() => {

@@ -1,8 +1,3 @@
-// ============================================
-// DEMO MODE: Supabase OTP verification commented out.
-// Any 6-digit code is accepted for demo.
-// Search for [SUPABASE-TODO] to restore.
-// ============================================
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -11,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -18,11 +14,12 @@ import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
 import { Button } from '../../components/ui/Button';
-// [SUPABASE-TODO] Restore real OTP verification:
-// import { supabase } from '../../services/supabase';
-// import { getUser } from '../../services/database';
-// import { dbToUser } from '../../utils/mappers';
-// import { useSignIn } from '../../store/authStore';
+import { sendOTP, verifyOTP } from '../../services/auth';
+import { checkAllPermissions } from '../../services/permissions';
+import { getUser } from '../../services/database';
+import { dbToUser } from '../../utils/mappers';
+import { useSignIn } from '../../store/authStore';
+import { usePermissionStoreBase } from '../../store/permissionStore';
 import type { OTPVerifyScreenProps } from '../../types/navigation';
 
 const CODE_LENGTH = 6;
@@ -34,7 +31,7 @@ export function OTPVerifyScreen({ navigation, route }: OTPVerifyScreenProps) {
   const [error, setError] = useState('');
   const [resendTimer, setResendTimer] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
-  // [SUPABASE-TODO] Restore: const signIn = useSignIn();
+  const signIn = useSignIn();
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -89,31 +86,63 @@ export function OTPVerifyScreen({ navigation, route }: OTPVerifyScreenProps) {
     if (token.length !== CODE_LENGTH) return;
 
     setLoading(true);
-    // [SUPABASE-TODO] Restore real OTP verification:
-    // const { data, error: verifyError } = await supabase.auth.verifyOtp({
-    //   phone: phoneNumber, token, type: 'sms',
-    // });
-    // if (verifyError) { setError(verifyError.message); setLoading(false); return; }
-    // const userId = data.user?.id;
-    // if (userId) {
-    //   const { data: existing } = await getUser(userId);
-    //   if (existing) { signIn(dbToUser(existing)); setLoading(false); return; }
-    // }
-    await new Promise((r) => setTimeout(r, 800)); // simulate verification
-    setLoading(false);
+    try {
+      const result = await verifyOTP(phoneNumber, token);
 
-    // Demo: any 6-digit code is accepted — proceed to profile setup
-    navigation.navigate('ProfileSetup', { phone: phoneNumber });
+      if (result.isNewUser) {
+        navigation.navigate('ProfileSetup', { phone: phoneNumber });
+      } else {
+        // Existing user → fetch profile and check onboarding status
+        const { data: existingUser } = await getUser(result.userId);
+        if (existingUser) {
+          const mappedUser = dbToUser(existingUser);
+          const { onboardingPermissionsCompleted } =
+            usePermissionStoreBase.getState();
+
+          // Layer 1: Never completed permission onboarding
+          if (!onboardingPermissionsCompleted) {
+            navigation.navigate('PermissionSetup', { user: mappedUser });
+            return;
+          }
+
+          // Layer 2: Flag says completed, but verify actual OS permissions
+          // (handles reinstall / user revoked permissions in Settings)
+          const status = await checkAllPermissions();
+          if (!status.notifications || !status.exactAlarm) {
+            Alert.alert(
+              'Permissions Needed',
+              'Showd needs notification permissions to send reminders. Let\'s set that up.',
+              [{
+                text: 'Continue',
+                onPress: () =>
+                  navigation.navigate('PermissionSetup', { user: mappedUser }),
+              }],
+              { cancelable: false },
+            );
+            return;
+          }
+
+          // Both layers passed → sign in directly
+          signIn(mappedUser);
+        }
+        // Navigation will automatically switch to main tabs via AppNavigator
+      }
+    } catch (err: any) {
+      setError(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResend = async () => {
     setResendTimer(30);
     setCode(Array(CODE_LENGTH).fill(''));
     inputRefs.current[0]?.focus();
-    // [SUPABASE-TODO] Restore:
-    // const { error: resendError } = await supabase.auth.signInWithOtp({ phone: phoneNumber });
-    // if (resendError) { Alert.alert('Error', resendError.message); }
-    console.log('[DEMO] Would resend OTP to', phoneNumber);
+    try {
+      await sendOTP(phoneNumber);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to resend code.');
+    }
   };
 
   return (

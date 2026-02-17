@@ -1,20 +1,15 @@
-// ============================================
-// DEMO MODE: Supabase user creation commented out.
-// Using local UUID for demo.
-// Search for [SUPABASE-TODO] to restore.
-// ============================================
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography } from '../../utils/typography';
-import { Spacing, BorderRadius } from '../../utils/spacing';
+import { Spacing } from '../../utils/spacing';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-// [SUPABASE-TODO] Restore:
-// import { supabase } from '../../services/supabase';
-// import { upsertUser } from '../../services/database';
+import { dbToUser } from '../../utils/mappers';
+import { getUser, updateUserFields } from '../../services/database';
+import { supabase } from '../../services/supabase';
 import type { ProfileSetupScreenProps } from '../../types/navigation';
 
 export function ProfileSetupScreen({ navigation, route }: ProfileSetupScreenProps) {
@@ -26,25 +21,35 @@ export function ProfileSetupScreen({ navigation, route }: ProfileSetupScreenProp
 
   const handleStart = async () => {
     setLoading(true);
-    // [SUPABASE-TODO] Restore real user creation:
-    // const { data: { user: authUser } } = await supabase.auth.getUser();
-    // const userId = authUser?.id || `user_${Date.now()}`;
-    const now = new Date().toISOString();
-    const user = {
-      id: `user_${Date.now()}`,
-      phone,
-      name: name.trim(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      quietHoursEnabled: false,
-      defaultSnoozeLimit: 3,
-      isGuest: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    // [SUPABASE-TODO] Restore: await upsertUser(user).catch(() => {});
-    await new Promise((r) => setTimeout(r, 400)); // simulate save
-    setLoading(false);
-    navigation.navigate('PermissionSetup', { user });
+    try {
+      // Get current authenticated Supabase user
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const userId = authUser?.id;
+
+      if (!userId) {
+        Alert.alert('Error', 'Authentication session not found. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Update user row in Supabase (created by Edge Function)
+      await updateUserFields(userId, {
+        name: name.trim(),
+        updated_at: new Date().toISOString(),
+      });
+
+      // Fetch the complete user record
+      const { data: userData } = await getUser(userId);
+
+      // Don't signIn here — PermissionSetupScreen.finishSetup() handles it.
+      // Calling signIn here would set isAuthenticated=true, causing AppNavigator
+      // to swap from AuthStack to RootStack before PermissionSetup can render.
+      setLoading(false);
+      navigation.navigate('PermissionSetup', { user: dbToUser(userData!) });
+    } catch (err: any) {
+      setLoading(false);
+      Alert.alert('Error', err.message || 'Failed to save profile.');
+    }
   };
 
   const handlePhotoTap = () => {
@@ -83,6 +88,9 @@ export function ProfileSetupScreen({ navigation, route }: ProfileSetupScreenProp
           loading={loading}
           fullWidth
         />
+        <Text style={styles.trialCaption}>
+          You're getting 7 days of Showd Pro — all features, no charge.
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -129,5 +137,11 @@ const styles = StyleSheet.create({
   bottomSection: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  trialCaption: {
+    ...Typography.caption,
+    color: Colors.proGold,
+    textAlign: 'center',
   },
 });

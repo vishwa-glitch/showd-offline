@@ -16,6 +16,8 @@ serve(async () => {
 
     if (error) throw error;
 
+    const APP_URL = Deno.env.get('APP_URL') || 'https://showd.app';
+
     let sent = 0;
     for (const conn of connections || []) {
       try {
@@ -30,23 +32,26 @@ serve(async () => {
         const completed = events?.filter((e: any) => e.status === 'done').length || 0;
         const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
         const task = conn.tasks as any;
+        const dashboardUrl = `${APP_URL}/witness/dashboard/${conn.invite_token}`;
 
         const body = weeklySummaryMessage({
           taskDoerName: conn.task_doer_name,
+          completed,
+          total,
           completionRate,
           longestStreak: task?.longest_streak || 0,
+          dashboardUrl,
         });
 
         const result = await sendSms({ to: conn.witness_phone, body });
 
         await supabaseAdmin.from('sms_log').insert({
-          connection_id: conn.id,
-          recipient_phone: conn.witness_phone,
-          message_type: 'weekly_summary',
+          witness_connection_id: conn.id,
+          to_phone: conn.witness_phone,
+          type: 'weekly_summary',
           message_body: body,
-          twilio_sid: result.sid,
-          segments: parseInt(result.num_segments, 10) || 1,
-          status: result.status,
+          twilio_message_sid: result.sid,
+          segment_count: parseInt(result.num_segments, 10) || 1,
         });
 
         sent++;
