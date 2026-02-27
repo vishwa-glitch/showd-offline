@@ -1,6 +1,7 @@
 import { Platform, Linking } from 'react-native';
 import notifee, { AuthorizationStatus } from '@notifee/react-native';
 import { isProblematicOEM, getOEMBrand, getOEMBatterySettingsIntent } from '../constants/oemConfig';
+import { canUseFullScreenIntent } from './fullScreenIntentAccess';
 
 export interface PermissionStatus {
   notifications: boolean;
@@ -51,18 +52,8 @@ export async function checkAllPermissions(): Promise<PermissionStatus> {
   // Overlay (only matters on problematic OEMs)
   const overlayPermission = !isProblematicOEM();
 
-  // Full-screen intent (Android 14+ requires explicit permission)
-  let fullScreenIntent = true;
-  if (Platform.OS === 'android' && Number(Platform.Version) >= 34) {
-    try {
-      const fsSettings = await notifee.getNotificationSettings();
-      // On Android 14+, full-screen intent requires explicit grant
-      // Notifee exposes this via the notification settings
-      fullScreenIntent = fsSettings.authorizationStatus === AuthorizationStatus.AUTHORIZED;
-    } catch {
-      fullScreenIntent = true; // Assume granted if check fails
-    }
-  }
+  // Full-screen notifications access (Android 14+)
+  const fullScreenIntent = await canUseFullScreenIntent();
 
   return {
     notifications,
@@ -117,11 +108,14 @@ export async function requestOverlayPermission(): Promise<void> {
 }
 
 /**
- * Open notification settings for full-screen intent permission (Android 14+).
- * On Android <14 this is auto-granted so this is a no-op.
+ * Open app-level notification settings for full-screen intent setup guidance (Android 14+).
+ * Android does not allow directly opening:
+ * Settings > Apps > Special app access > Full-screen notifications
+ * so we use best-effort app settings destinations.
  */
 export async function requestFullScreenIntentPermission(): Promise<void> {
   if (Platform.OS !== 'android' || Number(Platform.Version) < 34) return;
+
   try {
     await notifee.openNotificationSettings();
   } catch {

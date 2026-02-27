@@ -8,8 +8,6 @@ export type TaskCategory =
 
 export type TaskFrequency = 'once' | 'daily' | 'weekly' | 'custom';
 
-export type AccountabilityType = 'real' | 'personal' | 'none';
-
 export type TaskEventStatus = 'pending' | 'in_progress' | 'done' | 'snoozed' | 'struggled' | 'missed';
 
 export interface Task {
@@ -19,19 +17,13 @@ export interface Task {
   description?: string;
   category: TaskCategory;
   reminderTime: string;
+  witnessName?: string;
   frequency: TaskFrequency;
   frequencyDays?: number[];
   customIntervalDays?: number;
   oneTimeDate?: string;
   snoozeLimit: number;
   durationMinutes?: number;
-  accountabilityType: AccountabilityType;
-  witnessPhone?: string;
-  witnessName?: string;
-  witnessRelationship?: string;
-  witnessConnectionId?: string;
-  personalWitnessName?: string;
-  personalWitnessPhotoUrl?: string;
   requirePhotoProof: boolean;
   reminderSoundId?: string;
   isActive: boolean;
@@ -71,16 +63,12 @@ export interface TaskFormData {
   description: string;
   category: TaskCategory | null;
   reminderTime: string;
+  witnessName: string;
   frequency: TaskFrequency;
   frequencyDays: number[];
   customIntervalDays: number;
   oneTimeDate: string;
   snoozeLimit: number;
-  accountabilityType: AccountabilityType;
-  witnessPhone: string;
-  witnessName: string;
-  witnessRelationship: string;
-  personalWitnessName: string;
   durationMinutes: number | null;
   requirePhotoProof: boolean;
   reminderSoundId: string | null;
@@ -100,16 +88,12 @@ export const DEFAULT_FORM_DATA: TaskFormData = {
   description: '',
   category: null,
   reminderTime: '08:00',
+  witnessName: '',
   frequency: 'daily',
   frequencyDays: [],
   customIntervalDays: 1,
   oneTimeDate: '',
   snoozeLimit: 3,
-  accountabilityType: 'none',
-  witnessPhone: '',
-  witnessName: '',
-  witnessRelationship: '',
-  personalWitnessName: '',
   durationMinutes: null,
   requirePhotoProof: false,
   reminderSoundId: null,

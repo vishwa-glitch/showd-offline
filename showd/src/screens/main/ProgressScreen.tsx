@@ -9,13 +9,11 @@ import { Card } from '../../components/ui/Card';
 import { CalendarGrid } from '../../components/progress/CalendarGrid';
 import { DayDetail } from '../../components/progress/DayDetail';
 import { useTasks, useEvents, useCompletedTodayCount } from '../../store/taskStore';
-import { useIsPro, useIsTrialActive } from '../../store/subscriptionStore';
 import {
   formatMonthYear,
   getCompletionRate,
   getTimedTaskStats,
 } from '../../utils/dateUtils';
-import { formatDuration } from '../../utils/extensionTiers';
 import type { Task, TaskEvent } from '../../types/task';
 
 const CATEGORY_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
@@ -36,13 +34,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: Colors.categoryOther,
 };
 
-export function ProgressScreen({ navigation }: any) {
+export function ProgressScreen() {
   const tasks = useTasks();
   const events = useEvents();
   const completedCount = useCompletedTodayCount();
-  const isPro = useIsPro();
-  const isTrialActive = useIsTrialActive();
-  const hasFullProgress = isPro || isTrialActive;
 
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -52,12 +47,7 @@ export function ProgressScreen({ navigation }: any) {
   const maxStreak = tasks.reduce((max, t) => Math.max(max, t.currentStreak), 0);
   const longestStreak = tasks.reduce((max, t) => Math.max(max, t.longestStreak), 0);
 
-  // Free users can only see the current month (7-day rolling window)
   const goToPrevMonth = () => {
-    if (!hasFullProgress) {
-      navigation?.navigate?.('Paywall', { reason: 'full_progress' });
-      return;
-    }
     if (selectedMonth === 0) {
       setSelectedMonth(11);
       setSelectedYear((y) => y - 1);
@@ -97,7 +87,7 @@ export function ProgressScreen({ navigation }: any) {
         {/* Streak Banner */}
         <View style={styles.streakBanner}>
           <View style={styles.streakIcon}>
-            <Feather name="zap" size={28} color={Colors.snooze} />
+            <Feather name="zap" size={22} color={Colors.snooze} />
           </View>
           <Text style={styles.streakValue}>
             {maxStreak > 0 ? `${maxStreak} Day Streak` : 'No active streak'}
@@ -156,20 +146,6 @@ export function ProgressScreen({ navigation }: any) {
             />
           </Card>
         </View>
-
-        {/* Free user upgrade hint */}
-        {!hasFullProgress && (
-          <TouchableOpacity
-            style={styles.upgradeHint}
-            onPress={() => navigation?.navigate?.('Paywall', { reason: 'full_progress' })}
-          >
-            <Feather name="lock" size={14} color={Colors.proGold} />
-            <Text style={styles.upgradeHintText}>
-              Viewing last 7 days. Go Pro for full history.
-            </Text>
-            <Feather name="chevron-right" size={14} color={Colors.proGold} />
-          </TouchableOpacity>
-        )}
 
         {/* Day Detail */}
         {selectedDay !== null && (
@@ -262,27 +238,27 @@ const styles = StyleSheet.create({
   streakBanner: {
     backgroundColor: Colors.snoozeLight,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
+    padding: Spacing.base,
     alignItems: 'center',
     marginBottom: Spacing.xl,
   },
   streakIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
     ...Shadows.sm,
   },
   streakValue: {
-    ...Typography.heading2,
+    ...Typography.heading3,
     color: Colors.textPrimary,
     marginBottom: Spacing.xs,
   },
   streakSubtext: {
-    ...Typography.bodySmall,
+    ...Typography.caption,
     color: Colors.textSecondary,
     textAlign: 'center',
   },
@@ -370,21 +346,5 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textTertiary,
     marginTop: Spacing.xs,
-  },
-  upgradeHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.proGoldLight,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-    marginBottom: Spacing.xl,
-  },
-  upgradeHintText: {
-    fontFamily: FontFamily.medium,
-    fontSize: 13,
-    color: Colors.textSecondary,
-    flex: 1,
   },
 });

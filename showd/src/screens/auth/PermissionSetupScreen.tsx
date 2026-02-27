@@ -6,11 +6,12 @@ import {
   ScrollView,
   Platform,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
-import { Typography, FontFamily } from '../../utils/typography';
+import { Typography } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
 import { Button } from '../../components/ui/Button';
 import { PermissionItem } from '../../components/permissions/PermissionItem';
@@ -26,13 +27,12 @@ import {
   useSetOnboardingCompleted,
   useSetPermissionStatus,
 } from '../../store/permissionStore';
-import { useSignIn } from '../../store/authStore';
+import { useCompleteOnboarding } from '../../store/onboardingStore';
 import type { PermissionSetupScreenProps } from '../../types/navigation';
 
 type ItemStatus = 'pending' | 'granted' | 'denied';
 
-export function PermissionSetupScreen({ route }: PermissionSetupScreenProps) {
-  const { user } = route.params;
+export function PermissionSetupScreen({ navigation }: PermissionSetupScreenProps) {
   const [notifStatus, setNotifStatus] = useState<ItemStatus>('pending');
   const [alarmStatus, setAlarmStatus] = useState<ItemStatus>('pending');
   const [fullScreenStatus, setFullScreenStatus] = useState<ItemStatus>('pending');
@@ -42,15 +42,15 @@ export function PermissionSetupScreen({ route }: PermissionSetupScreenProps) {
 
   const setOnboardingCompleted = useSetOnboardingCompleted();
   const setPermissionStatus = useSetPermissionStatus();
-  const signIn = useSignIn();
+  const completeOnboarding = useCompleteOnboarding();
 
   const isAndroid = Platform.OS === 'android';
   const needsFullScreenIntent = isAndroid && Number(Platform.Version) >= 34;
 
   const finishSetup = useCallback(() => {
     setOnboardingCompleted();
-    signIn(user);
-  }, [setOnboardingCompleted, signIn, user]);
+    completeOnboarding();
+  }, [setOnboardingCompleted, completeOnboarding]);
 
   const handleEnableReminders = useCallback(async () => {
     setIsRequesting(true);
@@ -93,7 +93,7 @@ export function PermissionSetupScreen({ route }: PermissionSetupScreenProps) {
         setIsRequesting(false);
         Alert.alert(
           'Exact Alarms Required',
-          'Showd needs exact alarm permission to send reminders on time. Without this, reminders might be delayed by 15–30 minutes.',
+          'Showd needs exact alarm permission to send reminders on time. Without this, reminders might be delayed by 15\u201330 minutes.',
           [
             {
               text: 'Open Settings',
@@ -109,32 +109,31 @@ export function PermissionSetupScreen({ route }: PermissionSetupScreenProps) {
       }
     }
 
-    // Step 3: Full-screen intent (Android 14+ only, BLOCKING)
+    // Step 3: Full-screen intent (Android 14+ only, manual guidance)
     if (needsFullScreenIntent) {
-      await requestFullScreenIntentPermission();
-      const status = await checkAllPermissions();
-      const fsGranted = status.fullScreenIntent;
-      setFullScreenStatus(fsGranted ? 'granted' : 'denied');
-      setPermissionStatus('fullScreenIntentGranted', fsGranted);
-
-      if (!fsGranted) {
-        setIsRequesting(false);
-        Alert.alert(
-          'Full-Screen Permission Required',
-          'Showd needs full-screen notification permission to show reminders like a phone call. Without this, reminders are just regular notifications you can swipe away.',
-          [
-            {
-              text: 'Open Settings',
-              onPress: async () => {
-                await requestFullScreenIntentPermission();
-              },
+      // Android does not allow directly opening the special access destination.
+      // Keep this non-blocking and guide users to complete the final steps manually.
+      setFullScreenStatus('denied');
+      setPermissionStatus('fullScreenIntentGranted', false);
+      Alert.alert(
+        'Enable Full-Screen Reminders',
+        'Showd uses full-screen reminders for alarms, urgent actions, and call-like alerts.\n\nPlease enable this manually:\n1. Open App notification settings\n2. Open Special app access\n3. Open Full-screen notifications\n4. Turn ON Showd\n5. Return to Showd',
+        [
+          {
+            text: 'Open Notification Settings',
+            onPress: async () => {
+              await requestFullScreenIntentPermission();
             },
-            { text: 'Try Again', onPress: handleEnableReminders },
-          ],
-          { cancelable: false },
-        );
-        return;
-      }
+          },
+          {
+            text: 'Open App Settings',
+            onPress: async () => {
+              await Linking.openSettings();
+            },
+          },
+          { text: "I'll do this later", style: 'cancel' },
+        ],
+      );
     }
 
     // Step 4: Battery optimization (Android only, NOT blocking)
@@ -203,12 +202,14 @@ export function PermissionSetupScreen({ route }: PermissionSetupScreenProps) {
             />
           )}
           {needsFullScreenIntent && (
-            <PermissionItem
-              icon="maximize"
-              title="Take over your screen"
-              description="So you can't ignore it"
-              status={fullScreenStatus}
-            />
+            <>
+              <PermissionItem
+                icon="maximize"
+                title="Take over your screen"
+                description="So you can't ignore it"
+                status={fullScreenStatus}
+              />
+            </>
           )}
           {isAndroid && (
             <PermissionItem

@@ -6,49 +6,17 @@ import { Colors } from '../../utils/colors';
 import { Typography } from '../../utils/typography';
 import { Spacing } from '../../utils/spacing';
 import { TaskForm } from '../../components/task/TaskForm';
-import { useUser } from '../../store/authStore';
-import { useAddTask, useUpdateTask } from '../../store/taskStore';
-import { useCreateConnection } from '../../store/witnessStore';
+import { useAddTask } from '../../store/taskStore';
 import { scheduleTaskReminder } from '../../services/notifications';
-import { sendWitnessInviteSMS } from '../../services/witness';
 import type { CreateTaskScreenProps } from '../../types/navigation';
 import type { TaskFormData } from '../../types/task';
 
 export function CreateTaskScreen({ navigation }: CreateTaskScreenProps) {
-  const user = useUser();
   const addTask = useAddTask();
-  const updateTask = useUpdateTask();
-  const createConnection = useCreateConnection();
 
   const handleSubmit = (formData: TaskFormData) => {
-    const newTask = addTask(formData, user?.id || 'guest');
-    scheduleTaskReminder(newTask).catch(() => {});
-
-    // Create witness connection if real accountability selected
-    if (
-      formData.accountabilityType === 'real' &&
-      formData.witnessPhone &&
-      formData.witnessName
-    ) {
-      const connection = createConnection({
-        taskId: newTask.id,
-        taskDoerId: user?.id || 'guest',
-        taskDoerName: user?.name || 'Guest',
-        witnessPhone: formData.witnessPhone,
-        witnessName: formData.witnessName,
-        witnessRelationship: formData.witnessRelationship || undefined,
-      });
-      updateTask(newTask.id, { witnessConnectionId: connection.id });
-      sendWitnessInviteSMS({
-        connectionId: connection.id,
-        witnessPhone: formData.witnessPhone,
-        witnessName: formData.witnessName,
-        taskDoerName: user?.name || 'Guest',
-        taskName: formData.name,
-        inviteToken: connection.inviteToken,
-      });
-    }
-
+    const newTask = addTask(formData);
+    scheduleTaskReminder(newTask).catch(() => { });
     navigation.goBack();
   };
 
@@ -71,8 +39,6 @@ export function CreateTaskScreen({ navigation }: CreateTaskScreenProps) {
       <TaskForm
         onSubmit={handleSubmit}
         submitLabel="Create Task"
-        userPhone={user?.phone}
-        userName={user?.name}
       />
     </SafeAreaView>
   );

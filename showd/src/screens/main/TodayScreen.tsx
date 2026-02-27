@@ -1,19 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
-import { Typography, FontFamily } from '../../utils/typography';
-import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
-import { useUser } from '../../store/authStore';
+import { Typography } from '../../utils/typography';
+import { Spacing, Shadows } from '../../utils/spacing';
+import { useUserName } from '../../store/onboardingStore';
 import { useEvents, useTodayTasks, useCompletedTodayCount, useCompleteTask } from '../../store/taskStore';
-import { useTriggerReminder } from '../../store/reminderStore';
 import { TaskCard } from '../../components/task/TaskCard';
 import { TaskEmptyState } from '../../components/task/TaskEmptyState';
 import { QuickStatsRow } from '../../components/task/QuickStatsRow';
 import { PermissionBanner } from '../../components/permissions/PermissionBanner';
 import { ActiveTimerBar } from '../../components/timer/ActiveTimerBar';
-import { TrialBanner } from '../../components/subscription/TrialBanner';
 import { useIsTimerActive, useActiveTimerTaskId, useTimerRemainingSeconds } from '../../store/timerStore';
 import type { TodayScreenProps } from '../../types/navigation';
 import type { Task } from '../../types/task';
@@ -34,30 +32,15 @@ function formatDate(): string {
 }
 
 export function TodayScreen({ navigation }: TodayScreenProps) {
-  const user = useUser();
+  const userName = useUserName();
   const tasks = useTodayTasks();
   const completedCount = useCompletedTodayCount();
   const events = useEvents();
   const completeTask = useCompleteTask();
-  const triggerReminder = useTriggerReminder();
   const timerActive = useIsTimerActive();
   const activeTimerTaskId = useActiveTimerTaskId();
   const timerRemainingSeconds = useTimerRemainingSeconds();
 
-  // Long-press a task to test its reminder screen
-  const handleDevTestReminder = (taskId: string) => {
-    console.log('[TodayScreen] Long-press detected for task:', taskId);
-    Alert.alert('Test Reminder', 'Trigger a test reminder for this task?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Trigger',
-        onPress: () => {
-          console.log('[TodayScreen] Triggering reminder for:', taskId);
-          triggerReminder(taskId);
-        }
-      },
-    ]);
-  };
 
   const isTaskCompletedToday = (taskId: string) => {
     const today = new Date().toISOString().split('T')[0];
@@ -73,11 +56,7 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
   };
 
   const renderTask = ({ item }: { item: Task }) => (
-    <TouchableOpacity
-      onLongPress={() => handleDevTestReminder(item.id)}
-      delayLongPress={800}
-      activeOpacity={1}
-    >
+    <TouchableOpacity activeOpacity={1}>
       <TaskCard
         task={item}
         isCompleted={isTaskCompletedToday(item.id)}
@@ -91,9 +70,6 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Trial Banner */}
-      <TrialBanner onGoProPress={() => navigation.navigate('Paywall', { reason: 'pro_required' })} />
-
       {/* Permission Banner */}
       <PermissionBanner />
 
@@ -104,7 +80,7 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>
-            {getGreeting()}, {user?.name || 'there'}
+            {getGreeting()}, {userName || 'there'}
           </Text>
           <Text style={styles.date}>{formatDate()}</Text>
         </View>

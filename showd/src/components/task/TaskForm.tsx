@@ -23,15 +23,13 @@ import {
   TaskFormData,
   TaskCategory,
   TaskFrequency,
-  AccountabilityType,
   TASK_CATEGORIES,
   DEFAULT_FORM_DATA,
 } from '../../types/task';
-import { getInviteSMSPreview, validateWitnessPhone } from '../../services/witness';
-import { useIsPro, useIsTrialActive } from '../../store/subscriptionStore';
-import { ProBadge } from '../subscription/ProBadge';
 import { useSelectedSoundId } from '../../store/soundStore';
+import { useDefaultSnoozeLimit } from '../../store/onboardingStore';
 import { getSoundName } from '../../utils/sounds';
+import { formatReminderTime, formatTime12hFromDate, parseReminderTime } from '../../utils/reminderTime';
 
 const CATEGORY_COLORS: Record<TaskCategory, string> = {
   medication: Colors.categoryMedication,
@@ -51,39 +49,23 @@ const FREQUENCY_OPTIONS: { key: TaskFrequency; label: string }[] = [
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-const RELATIONSHIP_OPTIONS = [
-  { key: 'friend', label: 'Friend' },
-  { key: 'family', label: 'Family' },
-  { key: 'partner', label: 'Partner' },
-  { key: 'coworker', label: 'Coworker' },
-  { key: 'coach', label: 'Coach' },
-  { key: 'other', label: 'Other' },
-] as const;
-
 interface TaskFormProps {
   initialData?: Partial<TaskFormData>;
   onSubmit: (data: TaskFormData) => void;
   submitLabel: string;
-  userPhone?: string;
-  userName?: string;
-  onPaywall?: (reason: string) => void;
 }
 
 export function TaskForm({
   initialData,
   onSubmit,
   submitLabel,
-  userPhone,
-  userName,
-  onPaywall,
 }: TaskFormProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const selectedSoundId = useSelectedSoundId();
-  const isPro = useIsPro();
-  const isTrialActive = useIsTrialActive();
-  const canUseRealAccountability = isPro || isTrialActive;
+  const defaultSnoozeLimit = useDefaultSnoozeLimit();
   const [form, setForm] = useState<TaskFormData>({
     ...DEFAULT_FORM_DATA,
+    snoozeLimit: defaultSnoozeLimit,
     ...initialData,
   });
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -92,41 +74,25 @@ export function TaskForm({
     setForm((prev) => ({ ...prev, ...updates }));
   };
 
-  const phoneError =
-    form.accountabilityType === 'real' && form.witnessPhone
-      ? validateWitnessPhone(form.witnessPhone, userPhone || '')
-      : undefined;
-
   const isValid =
     form.name.trim().length > 0 &&
-    form.category !== null &&
-    (form.accountabilityType !== 'real' ||
-      (form.witnessPhone.trim().length > 0 &&
-        form.witnessName.trim().length > 0 &&
-        !phoneError));
+    form.category !== null;
 
   const timeDate = (() => {
-    const [h, m] = form.reminderTime.split(':').map(Number);
+    const parsed = parseReminderTime(form.reminderTime);
     const d = new Date();
-    d.setHours(h, m, 0, 0);
+    if (parsed) {
+      d.setHours(parsed.hours, parsed.minutes, 0, 0);
+    }
     return d;
   })();
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-  };
 
   const handleTimeChange = (_: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowTimePicker(false);
     }
     if (selectedDate) {
-      const hours = selectedDate.getHours().toString().padStart(2, '0');
-      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
-      updateForm({ reminderTime: `${hours}:${minutes}` });
+      updateForm({ reminderTime: formatTime12hFromDate(selectedDate) });
     }
   };
 
@@ -191,7 +157,7 @@ export function TaskForm({
           onPress={() => setShowTimePicker(true)}
         >
           <Feather name="clock" size={20} color={Colors.primary} />
-          <Text style={styles.timeText}>{formatTime(form.reminderTime)}</Text>
+          <Text style={styles.timeText}>{formatReminderTime(form.reminderTime)}</Text>
           <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
         </TouchableOpacity>
         {showTimePicker && (
@@ -200,6 +166,7 @@ export function TaskForm({
               value={timeDate}
               mode="time"
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              is24Hour={false}
               onChange={handleTimeChange}
             />
             {Platform.OS === 'ios' && (
@@ -211,6 +178,16 @@ export function TaskForm({
             )}
           </View>
         )}
+      </View>
+
+      {/* Witness */}
+      <View style={styles.section}>
+        <Input
+          label="Witness name (optional)"
+          placeholder="Who is counting on you?"
+          value={form.witnessName}
+          onChangeText={(witnessName) => updateForm({ witnessName })}
+        />
       </View>
 
       {/* Frequency */}
@@ -249,6 +226,31 @@ export function TaskForm({
             ))}
           </View>
         )}
+        {form.frequency === 'custom' && (
+          <View style={styles.customIntervalRow}>
+            <Text style={styles.customIntervalLabel}>Every</Text>
+            <View style={styles.stepperRow}>
+              <TouchableOpacity
+                style={styles.stepperButton}
+                onPress={() =>
+                  updateForm({ customIntervalDays: Math.max(2, form.customIntervalDays - 1) })
+                }
+              >
+                <Feather name="minus" size={20} color={Colors.textPrimary} />
+              </TouchableOpacity>
+              <Text style={styles.stepperValue}>{form.customIntervalDays}</Text>
+              <TouchableOpacity
+                style={styles.stepperButton}
+                onPress={() =>
+                  updateForm({ customIntervalDays: Math.min(30, form.customIntervalDays + 1) })
+                }
+              >
+                <Feather name="plus" size={20} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.customIntervalLabel}>days</Text>
+          </View>
+        )}
       </View>
 
       {/* Duration */}
@@ -259,115 +261,6 @@ export function TaskForm({
           onChange={(durationMinutes) => updateForm({ durationMinutes })}
           category={form.category}
         />
-      </View>
-
-      {/* Accountability Style */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Accountability style</Text>
-        <View style={styles.accountabilityRow}>
-          <TouchableOpacity
-            style={[
-              styles.accountabilityCard,
-              form.accountabilityType === 'real' && styles.accountabilityCardSelected,
-            ]}
-            onPress={() => {
-              if (!canUseRealAccountability) {
-                onPaywall?.('real_accountability');
-                return;
-              }
-              updateForm({ accountabilityType: 'real' });
-            }}
-          >
-            <View style={styles.recommendedBadge}>
-              <Text style={styles.recommendedBadgeText}>
-                {canUseRealAccountability ? 'Recommended' : 'Pro'}
-              </Text>
-            </View>
-            <Feather name="users" size={24} color={form.accountabilityType === 'real' ? Colors.primary : Colors.textTertiary} />
-            <Text style={[styles.accountabilityTitle, form.accountabilityType === 'real' && styles.accountabilityTitleSelected]}>
-              Real Accountability
-            </Text>
-            <Text style={styles.accountabilityDesc}>
-              Someone you trust gets notified
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.accountabilityCard,
-              form.accountabilityType === 'personal' && styles.accountabilityCardSelected,
-            ]}
-            onPress={() => updateForm({ accountabilityType: 'personal' })}
-          >
-            <Feather name="user" size={24} color={form.accountabilityType === 'personal' ? Colors.primary : Colors.textTertiary} />
-            <Text style={[styles.accountabilityTitle, form.accountabilityType === 'personal' && styles.accountabilityTitleSelected]}>
-              Personal
-            </Text>
-            <Text style={styles.accountabilityDesc}>
-              A name on your reminders
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {form.accountabilityType === 'real' && (
-          <View style={styles.witnessInputs}>
-            <Input
-              label="Witness phone number"
-              placeholder="+1 (555) 000-0000"
-              value={form.witnessPhone}
-              onChangeText={(witnessPhone) => updateForm({ witnessPhone })}
-              keyboardType="phone-pad"
-              error={phoneError || undefined}
-            />
-            <Input
-              label="Witness name"
-              placeholder="What's their name?"
-              value={form.witnessName}
-              onChangeText={(witnessName) => updateForm({ witnessName })}
-            />
-            <Text style={[styles.sectionTitle, { marginTop: Spacing.sm }]}>
-              Relationship (optional)
-            </Text>
-            <View style={styles.chipRow}>
-              {RELATIONSHIP_OPTIONS.map((opt) => (
-                <Chip
-                  key={opt.key}
-                  label={opt.label}
-                  selected={form.witnessRelationship === opt.key}
-                  onPress={() => updateForm({ witnessRelationship: opt.key })}
-                />
-              ))}
-            </View>
-            {form.witnessPhone.trim() !== '' && form.witnessName.trim() !== '' && (
-              <View style={styles.smsPreviewContainer}>
-                <View style={styles.smsPreviewHeader}>
-                  <Feather name="message-square" size={14} color={Colors.textTertiary} />
-                  <Text style={styles.smsPreviewLabel}>Preview: SMS they'll receive</Text>
-                </View>
-                <Text style={styles.smsPreviewText}>
-                  {getInviteSMSPreview({
-                    witnessName: form.witnessName,
-                    taskDoerName: userName || 'You',
-                    taskName: form.name || 'your task',
-                  })}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {form.accountabilityType === 'personal' && (
-          <View style={styles.witnessInputs}>
-            <Input
-              label="Who motivates you?"
-              placeholder="Mom, Coach Dave, etc."
-              value={form.personalWitnessName}
-              onChangeText={(personalWitnessName) =>
-                updateForm({ personalWitnessName })
-              }
-            />
-          </View>
-        )}
       </View>
 
       {/* Snooze Limit */}
@@ -389,7 +282,7 @@ export function TaskForm({
           <TouchableOpacity
             style={styles.stepperButton}
             onPress={() =>
-              updateForm({ snoozeLimit: Math.min(3, form.snoozeLimit + 1) })
+              updateForm({ snoozeLimit: Math.min(5, form.snoozeLimit + 1) })
             }
           >
             <Feather name="plus" size={20} color={Colors.textPrimary} />
@@ -397,40 +290,7 @@ export function TaskForm({
         </View>
       </View>
 
-      {/* Photo Proof */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Photo proof</Text>
-        <TouchableOpacity
-          style={styles.photoProofRow}
-          onPress={() => {
-            if (!isPro && !isTrialActive) {
-              onPaywall?.('photo_proof');
-              return;
-            }
-            updateForm({ requirePhotoProof: !form.requirePhotoProof });
-          }}
-        >
-          <View style={styles.photoProofLeft}>
-            <Feather name="camera" size={20} color={Colors.textSecondary} />
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.photoProofLabel}>
-                  Require photo proof after completion
-                </Text>
-                {!isPro && !isTrialActive && <ProBadge />}
-              </View>
-              <Text style={styles.photoProofHint}>
-                Take a photo to prove you did it
-              </Text>
-            </View>
-          </View>
-          <View style={[styles.checkbox, form.requirePhotoProof && styles.checkboxChecked]}>
-            {form.requirePhotoProof && (
-              <Feather name="check" size={14} color={Colors.surface} />
-            )}
-          </View>
-        </TouchableOpacity>
-      </View>
+
 
       {/* Reminder Sound */}
       <View style={styles.section}>
@@ -523,78 +383,6 @@ const styles = StyleSheet.create({
   dayLabelSelected: {
     color: Colors.surface,
   },
-  accountabilityRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  accountabilityCard: {
-    flex: 1,
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.base,
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    overflow: 'visible',
-  },
-  accountabilityCardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
-  },
-  accountabilityTitle: {
-    ...Typography.caption,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  accountabilityTitleSelected: {
-    color: Colors.primary,
-  },
-  accountabilityDesc: {
-    ...Typography.caption,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    fontSize: 11,
-  },
-  witnessInputs: {
-    marginTop: Spacing.base,
-  },
-  recommendedBadge: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    zIndex: 1,
-  },
-  recommendedBadgeText: {
-    ...Typography.caption,
-    color: Colors.surface,
-    fontSize: 10,
-  },
-  smsPreviewContainer: {
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.base,
-    marginTop: Spacing.md,
-  },
-  smsPreviewHeader: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  smsPreviewLabel: {
-    ...Typography.caption,
-    color: Colors.textTertiary,
-  },
-  smsPreviewText: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-    fontStyle: 'italic' as const,
-  },
   stepperRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -620,43 +408,7 @@ const styles = StyleSheet.create({
   submitButton: {
     marginTop: Spacing.md,
   },
-  photoProofRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.base,
-    ...Shadows.sm,
-  },
-  photoProofLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: Spacing.md,
-  },
-  photoProofLabel: {
-    ...Typography.body,
-    color: Colors.textPrimary,
-  },
-  photoProofHint: {
-    ...Typography.caption,
-    color: Colors.textTertiary,
-    marginTop: 2,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
+
   soundRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -671,5 +423,16 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     flex: 1,
     textTransform: 'capitalize',
+  },
+  customIntervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  customIntervalLabel: {
+    ...Typography.body,
+    color: Colors.textPrimary,
   },
 });

@@ -14,9 +14,7 @@ import {
   requestNotificationPermission,
   requestExactAlarmPermission,
   requestBatteryOptimizationDisable,
-  openAutostartSettings,
 } from '../../services/permissions';
-import { isProblematicOEM, getOEMDisplayName } from '../../constants/oemConfig';
 
 interface HealthRowProps {
   label: string;
@@ -112,19 +110,6 @@ export function ReminderHealthCheck() {
             }}
           />
 
-          {isProblematicOEM() && (
-            <>
-              <View style={styles.divider} />
-              <HealthRow
-                label={`${getOEMDisplayName()} Autostart`}
-                granted={null}
-                onFix={async () => {
-                  await openAutostartSettings();
-                  refreshPermissions();
-                }}
-              />
-            </>
-          )}
         </>
       )}
     </View>

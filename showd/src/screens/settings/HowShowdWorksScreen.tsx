@@ -17,11 +17,9 @@ import { useTasks } from '../../store/taskStore';
 import {
   DarkColors,
   MiniTaskCards,
-  AccountabilityCards,
   MiniReminderMockup,
   ThreeChoices,
   MiniTimerMockup,
-  SmsBubbles,
   MiniCalendarWeek,
 } from '../../components/howItWorks/Mockups';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -82,7 +80,7 @@ export function HowShowdWorksScreen({ navigation }: Props) {
             </View>
             <Text style={styles.heroTitle}>How Showd Works</Text>
             <Text style={styles.heroSubtitle}>
-              Not another todo app. A system that actually makes you do the thing.
+              A simple, offline task reminder that actually makes you do the thing.
             </Text>
           </Animated.View>
 
@@ -90,7 +88,7 @@ export function HowShowdWorksScreen({ navigation }: Props) {
           <StepSection
             stepNumber="01"
             heading="Create a task that matters"
-            body="Add the thing you keep putting off — take your medication, exercise, deep work, journaling. Set a time, pick how often, and optionally set a duration for tasks that take longer than a moment."
+            body="Add the thing you keep putting off — take your medication, exercise, deep work, journaling. Set a time, pick how often (daily, weekly, or custom), and optionally set a duration for tasks that take longer than a moment."
             delay={100}
           >
             <MiniTaskCards />
@@ -99,66 +97,54 @@ export function HowShowdWorksScreen({ navigation }: Props) {
           {/* Step 2 */}
           <StepSection
             stepNumber="02"
-            heading="Choose someone who'll hold you to it"
-            body="Pick a real person — a partner, parent, friend, or coach. They get a text when you miss a task or when you're struggling. No app download needed on their end. Or choose personal accountability — just a name and face on your reminders to keep you motivated."
+            heading="When it's time, your screen gets taken over"
+            body="No banner notification you can swipe away. Showd takes over your entire screen — like an incoming call. You can't ignore it. You have to make a choice."
             delay={150}
           >
-            <AccountabilityCards />
+            <MiniReminderMockup />
           </StepSection>
 
           {/* Step 3 */}
           <StepSection
             stepNumber="03"
-            heading="When it's time, your screen gets taken over"
-            body="No banner notification you can swipe away. Showd takes over your entire screen — like an incoming call from someone who cares. You can't ignore it. You have to make a choice."
+            heading="Three honest choices. Every one is valid."
+            body="No guilt. No shame. Just honesty about where you're at today."
             delay={200}
           >
-            <MiniReminderMockup />
+            <ThreeChoices />
           </StepSection>
 
           {/* Step 4 */}
           <StepSection
             stepNumber="04"
-            heading="Three honest choices. Every one is valid."
-            body="No guilt. No shame. Just honesty about where you're at today."
+            heading="For bigger tasks, a focus timer keeps you locked in"
+            body="Set a duration on tasks that take real time — exercise, deep work, meditation. When the reminder fires, tap Start and a countdown begins. You can pause, finish early, or ask for more time when it runs out."
             delay={250}
           >
-            <ThreeChoices />
+            <MiniTimerMockup />
           </StepSection>
 
           {/* Step 5 */}
           <StepSection
             stepNumber="05"
-            heading="For bigger tasks, a focus timer keeps you locked in"
-            body="Set a duration on tasks that take real time — exercise, deep work, meditation. When the reminder fires, tap Start and a countdown begins. You can pause, finish early, or ask for more time when it runs out."
-            delay={300}
-          >
-            <MiniTimerMockup />
-          </StepSection>
-
-          {/* Step 6 */}
-          <StepSection
-            stepNumber="06"
-            heading="Your witness sees the real picture"
-            body="They get a weekly summary — how many tasks you completed, what you missed, your streak. When you're struggling, they get a gentle alert so they can reach out. It's accountability with compassion."
-            delay={350}
-          >
-            <SmsBubbles />
-          </StepSection>
-
-          {/* Step 7 */}
-          <StepSection
-            stepNumber="07"
             heading="Watch yourself become consistent"
             body="Track your streaks, see your completion rate climb, and look back at every day on the calendar. Green days stack up. You start to not want to break the chain."
-            delay={400}
+            delay={300}
           >
             <MiniCalendarWeek />
           </StepSection>
 
+          {/* Step 6 - Offline & Privacy */}
+          <StepSection
+            stepNumber="06"
+            heading="100% offline. Your data stays on your device."
+            body="No accounts, no cloud sync, no tracking. Showd works entirely on your device. Your tasks, your progress, your streaks — all stored locally. No internet required, ever."
+            delay={350}
+          />
+
           {/* Closing */}
           <Animated.View
-            entering={FadeInUp.delay(450).duration(300)}
+            entering={FadeInUp.delay(400).duration(300)}
             style={styles.closingSection}
           >
             <View style={styles.closingDivider} />

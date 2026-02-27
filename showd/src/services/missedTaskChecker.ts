@@ -1,4 +1,5 @@
 import type { Task, TaskEvent } from '../types/task';
+import { parseReminderTime } from '../utils/reminderTime';
 
 /**
  * Check for tasks that should be marked as missed.
@@ -29,7 +30,9 @@ export function getTasksToMarkMissed(
     if (!shouldFireToday(task, now)) continue;
 
     // Parse reminder time
-    const [hours, minutes] = task.reminderTime.split(':').map(Number);
+    const parsedTime = parseReminderTime(task.reminderTime);
+    if (!parsedTime) continue;
+    const { hours, minutes } = parsedTime;
     const reminderDate = new Date();
     reminderDate.setHours(hours, minutes, 0, 0);
 

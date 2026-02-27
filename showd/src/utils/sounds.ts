@@ -14,6 +14,9 @@ export const BUILT_IN_SOUNDS: readonly SoundOption[] = [
 ] as const;
 
 export const DEFAULT_SOUND_ID = 'gentle_pulse';
+// Bump channel id when channel-level sound config changes on Android.
+// Android channels are immutable once created, so versioning forces a clean channel.
+export const REMINDER_CHANNEL_ID = 'showd-reminder-v2';
 
 export function getSoundName(soundId: string): string {
   const found = BUILT_IN_SOUNDS.find((s) => s.id === soundId);
@@ -28,12 +31,12 @@ export function isBuiltInSound(soundId: string): boolean {
  * Returns the Notifee channel ID for a given sound.
  */
 export function getChannelIdForSound(soundId: string): string {
-  if (isBuiltInSound(soundId)) return `showd-reminder-${soundId}`;
-  return 'showd-reminder-custom';
+  void soundId;
+  return REMINDER_CHANNEL_ID;
 }
 
 /**
- * Static require() map for expo-av playback.
+ * Static require() map for expo-audio playback.
  * React Native requires static paths — cannot be computed dynamically.
  */
 export const SOUND_ASSETS: Record<string, any> = {

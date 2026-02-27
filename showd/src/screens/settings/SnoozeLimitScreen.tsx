@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
-import { useUser, useUpdateProfile } from '../../store/authStore';
+import { useDefaultSnoozeLimit, useUpdateDefaultSnoozeLimit } from '../../store/onboardingStore';
 import type { SnoozeLimitScreenProps } from '../../types/navigation';
 
 const OPTIONS = [
@@ -30,14 +30,13 @@ const OPTIONS = [
 ] as const;
 
 export function SnoozeLimitScreen({ navigation }: SnoozeLimitScreenProps) {
-  const user = useUser();
-  const updateProfile = useUpdateProfile();
-  const currentLimit = user?.defaultSnoozeLimit ?? 3;
+  const currentLimit = useDefaultSnoozeLimit();
+  const updateDefaultSnoozeLimit = useUpdateDefaultSnoozeLimit();
 
   const handleSelect = (value: number) => {
     if (value === currentLimit) return;
-    updateProfile({ defaultSnoozeLimit: value });
-    Alert.alert('Updated', `Snooze limit updated to ${value}`);
+    updateDefaultSnoozeLimit(value);
+    Alert.alert('Updated', `Default snooze limit updated to ${value}`);
   };
 
   return (

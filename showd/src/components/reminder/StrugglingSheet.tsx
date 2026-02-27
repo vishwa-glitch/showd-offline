@@ -22,7 +22,8 @@ import {
   useActiveTaskId,
 } from '../../store/reminderStore';
 import { useActiveTimerTaskId, useAbandonTimer } from '../../store/timerStore';
-import { useStruggleTask } from '../../store/taskStore';
+import { useStruggleTask, useGetTaskById } from '../../store/taskStore';
+import { cancelActiveReminder, scheduleNextRegularReminder } from '../../services/notifications';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.6;
@@ -51,6 +52,7 @@ export function StrugglingSheet() {
   const dismissReminder = useDismissReminder();
   const abandonTimer = useAbandonTimer();
   const struggleTask = useStruggleTask();
+  const getTaskById = useGetTaskById();
   const scrollRef = useRef<ScrollView>(null);
 
   const handleSelect = useCallback((reason: Reason) => {
@@ -66,6 +68,13 @@ export function StrugglingSheet() {
 
     struggleTask(activeTaskId, reason, selectedReason === 'Other' ? otherNote.trim() : undefined);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    cancelActiveReminder(activeTaskId).catch(() => {});
+    if (!isFromTimer) {
+      const task = getTaskById(activeTaskId);
+      if (task) {
+        scheduleNextRegularReminder(task).catch(() => {});
+      }
+    }
 
     setSubmitted(true);
     setTimeout(() => {
@@ -79,7 +88,7 @@ export function StrugglingSheet() {
         dismissReminder();
       }
     }, 2000);
-  }, [selectedReason, otherNote, activeTaskId, isFromTimer, struggleTask, dismissReminder, abandonTimer, closeStrugglingSheet]);
+  }, [selectedReason, otherNote, activeTaskId, isFromTimer, struggleTask, getTaskById, dismissReminder, abandonTimer, closeStrugglingSheet]);
 
   const handleClose = useCallback(() => {
     setSelectedReason(null);

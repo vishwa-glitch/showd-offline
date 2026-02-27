@@ -5,6 +5,7 @@ import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
 import type { Task, TaskCategory } from '../../types/task';
+import { formatReminderTime } from '../../utils/reminderTime';
 
 interface TaskCardProps {
   task: Task;
@@ -32,13 +33,6 @@ const CATEGORY_ICONS: Record<TaskCategory, keyof typeof Feather.glyphMap> = {
   habit: 'star',
   other: 'grid',
 };
-
-function formatTime(time: string): string {
-  const [hours, minutes] = time.split(':').map(Number);
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours % 12 || 12;
-  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-}
 
 function formatTimerCountdown(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -83,19 +77,13 @@ export function TaskCard({ task, isCompleted, isInProgress, timerRemainingSecond
           ) : (
             <>
               <Feather name="clock" size={12} color={Colors.textTertiary} />
-              <Text style={styles.metaText}>{formatTime(task.reminderTime)}</Text>
+              <Text style={styles.metaText}>{formatReminderTime(task.reminderTime)}</Text>
             </>
           )}
-          {task.witnessName && (
+          {task.durationMinutes != null && task.durationMinutes > 0 && !isInProgress && (
             <>
-              <Feather name="eye" size={12} color={Colors.textTertiary} />
-              <Text style={styles.metaText}>{task.witnessName}</Text>
-            </>
-          )}
-          {task.personalWitnessName && (
-            <>
-              <Feather name="user" size={12} color={Colors.textTertiary} />
-              <Text style={styles.metaText}>{task.personalWitnessName}</Text>
+              <Feather name="target" size={12} color={Colors.textTertiary} />
+              <Text style={styles.metaText}>{task.durationMinutes}m</Text>
             </>
           )}
         </View>

@@ -3,13 +3,14 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useShallow } from 'zustand/react/shallow';
 import type { Task, TaskEvent, TaskFormData } from '../types/task';
+import { useRatingStoreBase } from './ratingStore';
 
 interface TaskState {
   tasks: Task[];
   events: TaskEvent[];
   isLoading: boolean;
 
-  addTask: (formData: TaskFormData, userId: string) => Task;
+  addTask: (formData: TaskFormData) => Task;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   deleteTask: (taskId: string) => void;
   getTaskById: (taskId: string) => Task | undefined;
@@ -24,8 +25,6 @@ interface TaskState {
   getTaskEvents: (taskId: string) => TaskEvent[];
   getCompletedTodayCount: () => number;
   getActiveTaskCount: () => number;
-
-  hydrateFromCloud: (tasks: Task[], events: TaskEvent[]) => void;
 }
 
 const generateUUID = () =>
@@ -34,6 +33,8 @@ const generateUUID = () =>
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+
+const LOCAL_USER_ID = 'local';
 
 /**
  * Check if a premature "missed" event exists for a task today.
@@ -58,26 +59,22 @@ const useTaskStoreBase = create<TaskState>()(
       events: [],
       isLoading: false,
 
-      addTask: (formData, userId) => {
+      addTask: (formData) => {
         const now = new Date().toISOString();
         const newTask: Task = {
           id: generateUUID(),
-          userId,
+          userId: LOCAL_USER_ID,
           name: formData.name,
           description: formData.description || undefined,
           category: formData.category!,
           reminderTime: formData.reminderTime,
+          witnessName: formData.witnessName || undefined,
           frequency: formData.frequency,
           frequencyDays: formData.frequencyDays.length > 0 ? formData.frequencyDays : undefined,
           customIntervalDays: formData.frequency === 'custom' ? formData.customIntervalDays : undefined,
           oneTimeDate: formData.frequency === 'once' ? formData.oneTimeDate : undefined,
           snoozeLimit: formData.snoozeLimit,
           durationMinutes: formData.durationMinutes ?? undefined,
-          accountabilityType: formData.accountabilityType,
-          witnessPhone: formData.witnessPhone || undefined,
-          witnessName: formData.witnessName || undefined,
-          witnessRelationship: formData.witnessRelationship || undefined,
-          personalWitnessName: formData.personalWitnessName || undefined,
           requirePhotoProof: formData.requirePhotoProof,
           reminderSoundId: formData.reminderSoundId ?? undefined,
           isActive: true,
@@ -129,7 +126,6 @@ const useTaskStoreBase = create<TaskState>()(
       completeTask: (taskId) => {
         const now = new Date().toISOString();
         const today = now.split('T')[0];
-        const userId = get().tasks.find((t) => t.id === taskId)?.userId ?? '';
 
         const alreadyDone = get().events.some(
           (e) => e.taskId === taskId && e.scheduledFor.startsWith(today) && e.status === 'done'
@@ -147,7 +143,7 @@ const useTaskStoreBase = create<TaskState>()(
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
-          userId,
+          userId: LOCAL_USER_ID,
           scheduledFor: now,
           status: 'done',
           respondedAt: now,
@@ -169,6 +165,9 @@ const useTaskStoreBase = create<TaskState>()(
           ),
         }));
 
+        // Track completion for rating prompt triggers
+        useRatingStoreBase.getState().recordTaskCompletion();
+
         return newStreak;
       },
 
@@ -187,7 +186,7 @@ const useTaskStoreBase = create<TaskState>()(
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
-          userId: task.userId,
+          userId: LOCAL_USER_ID,
           scheduledFor: now,
           status: 'snoozed',
           respondedAt: now,
@@ -202,11 +201,10 @@ const useTaskStoreBase = create<TaskState>()(
       struggleTask: (taskId, reason, note) => {
         const now = new Date().toISOString();
         const today = now.split('T')[0];
-        const task = get().tasks.find((t) => t.id === taskId);
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
-          userId: task?.userId ?? '',
+          userId: LOCAL_USER_ID,
           scheduledFor: now,
           status: 'struggled',
           respondedAt: now,
@@ -221,12 +219,14 @@ const useTaskStoreBase = create<TaskState>()(
             t.id === taskId ? { ...t, currentStreak: 0, updatedAt: now } : t
           ),
         }));
+
+        // Track struggle for rating prompt triggers
+        useRatingStoreBase.getState().recordStruggle();
       },
 
       markTaskMissed: (taskId) => {
         const now = new Date().toISOString();
         const today = now.split('T')[0];
-        const task = get().tasks.find((t) => t.id === taskId);
 
         const alreadyHandled = get().events.some(
           (e) =>
@@ -239,7 +239,7 @@ const useTaskStoreBase = create<TaskState>()(
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
-          userId: task?.userId ?? '',
+          userId: LOCAL_USER_ID,
           scheduledFor: now,
           status: 'missed',
           snoozeCount: 0,
@@ -270,9 +270,6 @@ const useTaskStoreBase = create<TaskState>()(
 
       getActiveTaskCount: () =>
         get().tasks.filter((t) => t.isActive && !t.isPaused).length,
-
-      hydrateFromCloud: (tasks, events) =>
-        set({ tasks, events }),
     }),
     {
       name: 'showd-tasks',
@@ -303,7 +300,6 @@ export const useSnoozeTask = () => useTaskStoreBase((s) => s.snoozeTask);
 export const useStruggleTask = () => useTaskStoreBase((s) => s.struggleTask);
 export const useMarkTaskMissed = () => useTaskStoreBase((s) => s.markTaskMissed);
 export const useAddEvent = () => useTaskStoreBase((s) => s.addEvent);
-export const useHydrateTasks = () => useTaskStoreBase((s) => s.hydrateFromCloud);
 export const useGetActiveTaskCount = () => useTaskStoreBase((s) => s.getActiveTaskCount);
 
 // Derived data hooks

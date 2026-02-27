@@ -14,24 +14,10 @@ import { Typography } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { WitnessConnectionCard } from '../../components/witness/WitnessConnectionCard';
-import { useTasks, useEvents, useCompleteTask, useDeleteTask, useUpdateTask } from '../../store/taskStore';
-import {
-  useGetConnectionByTaskId,
-  useRemoveConnectionsByTaskId,
-  useUpdateConnectionStatus,
-  useMarkFollowUpSent,
-} from '../../store/witnessStore';
+import { useTasks, useEvents, useCompleteTask, useDeleteTask } from '../../store/taskStore';
 import { cancelTaskReminder } from '../../services/notifications';
-import { sendResendInviteSMS, canResendInvite } from '../../services/witness';
 import type { TaskDetailScreenProps } from '../../types/navigation';
-
-function formatTime(time: string): string {
-  const [hours, minutes] = time.split(':').map(Number);
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours % 12 || 12;
-  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-}
+import { formatReminderTime } from '../../utils/reminderTime';
 
 function formatFrequency(frequency: string, days?: number[]): string {
   switch (frequency) {
@@ -58,82 +44,9 @@ export function TaskDetailScreen({ navigation, route }: TaskDetailScreenProps) {
   const allEvents = useEvents();
   const completeTask = useCompleteTask();
   const deleteTask = useDeleteTask();
-  const updateTask = useUpdateTask();
-  const getConnectionByTaskId = useGetConnectionByTaskId();
-  const removeConnectionsByTaskId = useRemoveConnectionsByTaskId();
-  const updateConnectionStatus = useUpdateConnectionStatus();
-  const markFollowUpSent = useMarkFollowUpSent();
 
   const task = tasks.find((t) => t.id === taskId);
   const events = allEvents.filter((e) => e.taskId === taskId);
-  const witnessConnection = task?.accountabilityType === 'real'
-    ? getConnectionByTaskId(taskId)
-    : undefined;
-
-  const handleResendInvite = () => {
-    if (!witnessConnection) return;
-    if (!canResendInvite(witnessConnection)) {
-      Alert.alert('Too Soon', 'You can resend the invite after 48 hours.');
-      return;
-    }
-    sendResendInviteSMS({
-      connectionId: witnessConnection.id,
-      witnessPhone: witnessConnection.witnessPhone,
-      witnessName: witnessConnection.witnessName,
-      taskDoerName: witnessConnection.taskDoerName,
-      taskName: task?.name || '',
-      inviteToken: witnessConnection.inviteToken,
-    });
-    markFollowUpSent(witnessConnection.id);
-    Alert.alert('Sent', 'Follow-up invite sent.');
-  };
-
-  const handleRemoveWitness = () => {
-    Alert.alert(
-      'Remove Witness',
-      'Remove this witness? They will no longer be notified.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            removeConnectionsByTaskId(taskId);
-            updateTask(taskId, {
-              accountabilityType: 'none' as any,
-              witnessConnectionId: undefined,
-              witnessPhone: undefined,
-              witnessName: undefined,
-            });
-          },
-        },
-      ],
-    );
-  };
-
-  const handleSwitchToPersonal = () => {
-    Alert.alert(
-      'Switch to Personal',
-      'Switch to personal accountability? The witness will no longer be notified.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Switch',
-          onPress: () => {
-            const name = witnessConnection?.witnessName || '';
-            removeConnectionsByTaskId(taskId);
-            updateTask(taskId, {
-              accountabilityType: 'personal',
-              personalWitnessName: name,
-              witnessConnectionId: undefined,
-              witnessPhone: undefined,
-              witnessName: undefined,
-            });
-          },
-        },
-      ],
-    );
-  };
 
   if (!task) {
     return (
@@ -156,8 +69,7 @@ export function TaskDetailScreen({ navigation, route }: TaskDetailScreenProps) {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            cancelTaskReminder(taskId).catch(() => {});
-            removeConnectionsByTaskId(taskId);
+            cancelTaskReminder(taskId).catch(() => { });
             deleteTask(taskId);
             navigation.goBack();
           },
@@ -198,19 +110,7 @@ export function TaskDetailScreen({ navigation, route }: TaskDetailScreenProps) {
             <Feather name="clock" size={18} color={Colors.textTertiary} />
             <Text style={styles.infoLabel}>Reminder</Text>
             <Text style={styles.infoValue}>
-              {formatTime(task.reminderTime)}, {formatFrequency(task.frequency, task.frequencyDays)}
-            </Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.infoRow}>
-            <Feather name="user" size={18} color={Colors.textTertiary} />
-            <Text style={styles.infoLabel}>Witness</Text>
-            <Text style={styles.infoValue}>
-              {task.accountabilityType === 'real' && task.witnessName
-                ? `${task.witnessName} — Real`
-                : task.accountabilityType === 'personal' && task.personalWitnessName
-                  ? `${task.personalWitnessName} — Personal`
-                  : 'None'}
+              {formatReminderTime(task.reminderTime)}, {formatFrequency(task.frequency, task.frequencyDays)}
             </Text>
           </View>
           <View style={styles.divider} />
@@ -235,28 +135,6 @@ export function TaskDetailScreen({ navigation, route }: TaskDetailScreenProps) {
             </>
           )}
         </Card>
-
-        {/* Witness Connection */}
-        {witnessConnection && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Witness</Text>
-            <WitnessConnectionCard
-              connection={witnessConnection}
-              onResendInvite={witnessConnection.status === 'invited' ? handleResendInvite : undefined}
-              onRemove={handleRemoveWitness}
-              onSwitchToPersonal={handleSwitchToPersonal}
-            />
-            {__DEV__ && witnessConnection.status === 'invited' && (
-              <Button
-                label="[DEV] Simulate Accept"
-                variant="text"
-                onPress={() => updateConnectionStatus(witnessConnection.id, 'active')}
-                style={styles.devButton}
-                textStyle={styles.devButtonText}
-              />
-            )}
-          </View>
-        )}
 
         {/* Streak */}
         <Card style={styles.streakCard}>
@@ -303,13 +181,13 @@ export function TaskDetailScreen({ navigation, route }: TaskDetailScreenProps) {
                       name={
                         event.status === 'done' ? 'check-circle'
                           : event.status === 'in_progress' ? 'play-circle'
-                          : 'clock'
+                            : 'clock'
                       }
                       size={16}
                       color={
                         event.status === 'done' ? Colors.success
                           : event.status === 'in_progress' ? Colors.inProgress
-                          : Colors.snooze
+                            : Colors.snooze
                       }
                     />
                     <View style={styles.activityContent}>
@@ -493,13 +371,5 @@ const styles = StyleSheet.create({
   deleteButton: {
     marginTop: Spacing.md,
     alignSelf: 'center',
-  },
-  devButton: {
-    marginTop: Spacing.sm,
-    alignSelf: 'center',
-  },
-  devButtonText: {
-    fontSize: 12,
-    color: Colors.textTertiary,
   },
 });

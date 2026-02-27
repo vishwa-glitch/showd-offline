@@ -1,3 +1,0 @@
--- No-op: This migration is intentionally empty.
--- The notification_preference constraint already allows 'alerts_only' and 'weekly',
--- which are the only two options supported. Daily SMS was removed to control SMS costs.

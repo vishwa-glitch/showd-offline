@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
@@ -15,10 +15,11 @@ export function WelcomeScreen({ navigation }: WelcomeScreenProps) {
       <View style={styles.content}>
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <View style={styles.logo}>
-            <Feather name="bell" size={40} color={Colors.surface} />
-          </View>
-          <Text style={styles.logoText}>showd.</Text>
+          <Image
+            source={require('../../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
 
         {/* Hero */}
@@ -39,12 +40,12 @@ export function WelcomeScreen({ navigation }: WelcomeScreenProps) {
             <Text style={styles.featureText}>Full-screen reminders you can't ignore</Text>
           </View>
           <View style={styles.featureRow}>
-            <Feather name="users" size={20} color={Colors.primary} />
-            <Text style={styles.featureText}>Real people holding you accountable</Text>
+            <Feather name="zap" size={20} color={Colors.primary} />
+            <Text style={styles.featureText}>Build streaks and stay consistent</Text>
           </View>
           <View style={styles.featureRow}>
             <Feather name="trending-up" size={20} color={Colors.primary} />
-            <Text style={styles.featureText}>Track streaks and build consistency</Text>
+            <Text style={styles.featureText}>Track your progress over time</Text>
           </View>
         </View>
       </View>
@@ -75,18 +76,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing['3xl'],
   },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  logoText: {
-    ...Typography.heading1,
-    color: Colors.primary,
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
   },
   hero: {
     marginBottom: Spacing['2xl'],

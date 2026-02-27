@@ -8,6 +8,7 @@ import {
   useNotificationsGranted,
   useExactAlarmGranted,
   useBatteryOptimizationDisabled,
+  useFullScreenIntentGranted,
   useShouldShowBanner,
   useDismissBanner,
   useRefreshAllPermissions,
@@ -16,12 +17,14 @@ import {
   requestNotificationPermission,
   requestExactAlarmPermission,
   requestBatteryOptimizationDisable,
+  requestFullScreenIntentPermission,
 } from '../../services/permissions';
 
 export function PermissionBanner() {
   const notificationsGranted = useNotificationsGranted();
   const exactAlarmGranted = useExactAlarmGranted();
   const batteryDisabled = useBatteryOptimizationDisabled();
+  const fullScreenIntentGranted = useFullScreenIntentGranted();
   const shouldShowBanner = useShouldShowBanner();
   const dismissBanner = useDismissBanner();
   const refreshPermissions = useRefreshAllPermissions();
@@ -55,13 +58,20 @@ export function PermissionBanner() {
       await requestBatteryOptimizationDisable();
       refreshPermissions();
     };
+  } else if (!fullScreenIntentGranted) {
+    message = 'Full-screen reminders are off. Urgent reminders may be swipeable.';
+    onFix = async () => {
+      await requestFullScreenIntentPermission();
+      refreshPermissions();
+    };
   }
 
   // Multiple missing
   const missingCount =
     (!notificationsGranted ? 1 : 0) +
     (!exactAlarmGranted ? 1 : 0) +
-    (!batteryDisabled ? 1 : 0);
+    (!batteryDisabled ? 1 : 0) +
+    (!fullScreenIntentGranted ? 1 : 0);
 
   if (missingCount > 1) {
     message = 'Some permissions are missing. Reminders may not work properly.';

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -17,8 +17,6 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
-  withDelay,
-  withSpring,
   FadeInDown,
   Easing,
 } from 'react-native-reanimated';
@@ -31,7 +29,6 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../types/navigation';
 import {
-  useActiveTaskId,
   usePendingReminders,
   useDismissReminder,
   useSnoozeReminder,
@@ -41,7 +38,11 @@ import {
 } from '../../store/reminderStore';
 import { useGetTaskById, useCompleteTask, useSnoozeTask, useAddEvent } from '../../store/taskStore';
 import { useStartTimer } from '../../store/timerStore';
-import { rescheduleAfterSnooze } from '../../services/notifications';
+import {
+  cancelActiveReminder,
+  rescheduleAfterSnooze,
+  scheduleNextRegularReminder,
+} from '../../services/notifications';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -50,6 +51,7 @@ interface FullScreenReminderProps {
 }
 
 export function FullScreenReminder({ task }: FullScreenReminderProps) {
+  const [isHandlingAction, setIsHandlingAction] = useState(false);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const pendingReminders = usePendingReminders();
   const dismissReminder = useDismissReminder();
@@ -68,7 +70,7 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
   const snoozesRemaining = task.snoozeLimit - snoozeCount;
   const totalReminders = pendingReminders.length + 1;
 
-  // Pulse animation for witness circle
+  // Pulse animation for circle
   const pulseScale = useSharedValue(1);
 
   useEffect(() => {
@@ -102,37 +104,34 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
   const category = TASK_CATEGORIES.find((c) => c.key === task.category);
   const categoryIcon = (category?.icon || 'circle') as keyof typeof Feather.glyphMap;
 
-  const witnessName =
-    task.accountabilityType === 'real'
-      ? task.witnessName
-      : task.accountabilityType === 'personal'
-        ? task.personalWitnessName
-        : null;
+  const witnessName = task.witnessName?.trim() || '';
+  const motivationLine = witnessName
+    ? `${witnessName} is counting on you`
+    : 'Time to show up for yourself';
 
-  const witnessLine =
-    task.accountabilityType === 'real' && task.witnessName
-      ? `${task.witnessName} is counting on you`
-      : task.accountabilityType === 'personal' && task.personalWitnessName
-        ? `Don't let ${task.personalWitnessName} down`
-        : 'Time to show up for yourself';
-
-  const initials = witnessName
-    ? witnessName
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-    : null;
+  const witnessInitials = (() => {
+    if (!witnessName) return '';
+    const parts = witnessName.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  })();
 
   const handleDone = useCallback(async () => {
+    if (isHandlingAction) return;
+    setIsHandlingAction(true);
     const streak = completeTask(task.id);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showSuccess(streak);
+    cancelActiveReminder(task.id).catch(() => {});
+    scheduleNextRegularReminder(task).catch(() => {});
     dismissReminder();
-  }, [task.id, completeTask, showSuccess, dismissReminder]);
+    setIsHandlingAction(false);
+  }, [task, completeTask, showSuccess, dismissReminder, isHandlingAction]);
 
   const handleStart = useCallback(() => {
+    if (isHandlingAction) return;
+    setIsHandlingAction(true);
     // Create an in_progress event
     const now = new Date().toISOString();
     const eventId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -149,23 +148,36 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
     // Start the global timer
     startTimer(task.id, eventId, task.durationMinutes!);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    cancelActiveReminder(task.id).catch(() => {});
+    scheduleNextRegularReminder(task).catch(() => {});
     dismissReminder();
     // Navigate to focus timer screen
     navigation.navigate('FocusTimer', { taskId: task.id, taskEventId: eventId });
-  }, [task, addEvent, startTimer, dismissReminder, navigation]);
+    setIsHandlingAction(false);
+  }, [task, addEvent, startTimer, dismissReminder, navigation, isHandlingAction]);
 
   const handleSnooze = useCallback(async () => {
+    if (isHandlingAction) return;
+    setIsHandlingAction(true);
     const success = snoozeTask(task.id);
-    if (!success) return;
+    if (!success) {
+      setIsHandlingAction(false);
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     snoozeReminder(task.id);
-    rescheduleAfterSnooze(task).catch(() => { });
-  }, [task, snoozeTask, snoozeReminder]);
+    await rescheduleAfterSnooze(task).catch(() => { });
+    setIsHandlingAction(false);
+  }, [task, snoozeTask, snoozeReminder, isHandlingAction]);
 
   const handleStruggling = useCallback(() => {
+    if (isHandlingAction) return;
+    setIsHandlingAction(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     openStrugglingSheet();
-  }, [openStrugglingSheet]);
+    cancelActiveReminder(task.id).catch(() => {});
+    setIsHandlingAction(false);
+  }, [openStrugglingSheet, task.id, isHandlingAction]);
 
   return (
     <View style={styles.container}>
@@ -174,10 +186,10 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
         <Feather name={categoryIcon} size={48} color="rgba(255,255,255,0.9)" />
       </View>
 
-      {/* Witness circle with pulse */}
-      <Animated.View style={[styles.witnessCircle, pulseStyle]}>
-        {initials ? (
-          <Text style={styles.witnessInitials}>{initials}</Text>
+      {/* Animated circle */}
+      <Animated.View style={[styles.motivationCircle, pulseStyle]}>
+        {witnessInitials ? (
+          <Text style={styles.witnessInitials}>{witnessInitials}</Text>
         ) : (
           <Feather name="user" size={40} color="rgba(255,255,255,0.7)" />
         )}
@@ -188,8 +200,8 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
         {task.name}
       </Text>
 
-      {/* Witness / motivation line */}
-      <Text style={styles.witnessLine}>{witnessLine}</Text>
+      {/* Motivation line */}
+      <Text style={styles.motivationLine}>{motivationLine}</Text>
 
       {/* Snooze count indicator */}
       {snoozeCount > 0 && (
@@ -269,7 +281,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
-    backgroundColor: 'rgba(15, 10, 20, 0.92)',
+    backgroundColor: 'rgba(15, 10, 20, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing['2xl'],
@@ -278,7 +290,7 @@ const styles = StyleSheet.create({
   categoryIcon: {
     marginBottom: Spacing.xl,
   },
-  witnessCircle: {
+  motivationCircle: {
     width: 96,
     height: 96,
     borderRadius: 48,
@@ -290,9 +302,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2xl'],
   },
   witnessInitials: {
+    ...Typography.heading2,
+    color: 'rgba(255,255,255,0.95)',
     fontFamily: FontFamily.bold,
-    fontSize: 32,
-    color: '#FFFFFF',
+    letterSpacing: 1,
   },
   taskName: {
     ...Typography.reminderTask,
@@ -300,7 +313,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Spacing.md,
   },
-  witnessLine: {
+  motivationLine: {
     ...Typography.reminderWitness,
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',

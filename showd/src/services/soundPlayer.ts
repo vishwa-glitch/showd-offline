@@ -1,7 +1,7 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
 import { SOUND_ASSETS } from '../utils/sounds';
 
-let currentSound: Audio.Sound | null = null;
+let currentPlayer: AudioPlayer | null = null;
 let previewTimeout: ReturnType<typeof setTimeout> | null = null;
 
 /**
@@ -19,19 +19,16 @@ export async function playSound(soundId: string, loop = false): Promise<void> {
 
     try {
         // Configure audio mode for playback even in silent mode
-        await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: true,
-            shouldDuckAndroid: false,
+        await setAudioModeAsync({
+            playsInSilentMode: true,
+            shouldRouteThroughEarpiece: false,
         });
 
-        const { sound } = await Audio.Sound.createAsync(asset, {
-            shouldPlay: true,
-            isLooping: loop,
-            volume: 1.0,
-        });
-        currentSound = sound;
+        const player = createAudioPlayer(asset);
+        player.loop = loop;
+        player.volume = 1.0;
+        player.play();
+        currentPlayer = player;
     } catch (err) {
         console.warn('[soundPlayer] Failed to play sound:', err);
     }
@@ -46,14 +43,20 @@ export async function stopSound(): Promise<void> {
         previewTimeout = null;
     }
 
-    if (currentSound) {
+    const playerToStop = currentPlayer;
+    currentPlayer = null;
+
+    if (playerToStop) {
         try {
-            await currentSound.stopAsync();
-            await currentSound.unloadAsync();
+            playerToStop.pause();
         } catch {
-            // Sound may already be unloaded
+            // Player may already be stopped
         }
-        currentSound = null;
+        try {
+            playerToStop.remove();
+        } catch {
+            // Player may already be released
+        }
     }
 }
 
@@ -63,8 +66,14 @@ export async function stopSound(): Promise<void> {
 export async function previewSound(soundId: string, durationMs = 3000): Promise<void> {
     await playSound(soundId, false);
 
+    // Capture reference to the player we just created
+    const playerRef = currentPlayer;
+
     previewTimeout = setTimeout(async () => {
-        await stopSound();
+        // Only stop if the same player is still active (not replaced by another preview)
+        if (currentPlayer === playerRef) {
+            await stopSound();
+        }
         previewTimeout = null;
     }, durationMs);
 }

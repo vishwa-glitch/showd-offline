@@ -16,28 +16,20 @@ import {
   initializeNotifications,
   registerForegroundHandler,
   registerBackgroundHandler,
+  consumeInitialReminderTaskId,
+  reconcileNotifications,
 } from './src/services/notifications';
-import { supabase } from './src/services/supabase';
-import { getUser } from './src/services/database';
-import { dbToUser } from './src/utils/mappers';
-import { useSignIn, useSignOut, useUser } from './src/store/authStore';
 import { useTriggerReminder } from './src/store/reminderStore';
+import { useTasks } from './src/store/taskStore';
 import { useMissedTaskChecker } from './src/hooks/useMissedTaskChecker';
 import { useTimerTick } from './src/hooks/useTimerTick';
 import { useAbandonedTimerDetector } from './src/hooks/useAbandonedTimerDetector';
-import { useWitnessNotifier } from './src/hooks/useWitnessNotifier';
-import { useSyncOnForeground } from './src/hooks/useSyncOnForeground';
-import { useRefreshAllPermissions, usePermissionStoreBase } from './src/store/permissionStore';
+import { useRefreshAllPermissions } from './src/store/permissionStore';
 import { initializeTimerChannel } from './src/services/timerNotification';
-// RevenueCat disabled until Play Console credentials are configured
-// import { initPurchases } from './src/services/purchases';
-import { useInitSubscription } from './src/store/subscriptionStore';
+import { useRecordAppOpen } from './src/store/ratingStore';
 
 // Register background notification handler at module level (required by Notifee)
-registerBackgroundHandler(() => {
-  // Background events are handled when the app comes to foreground.
-  // The foreground handler (inside the component) will pick up the trigger.
-});
+registerBackgroundHandler();
 
 // Prevent splash screen from hiding automatically
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -53,42 +45,16 @@ export default function App() {
   });
 
   const triggerReminder = useTriggerReminder();
+  const tasks = useTasks();
   const refreshPermissions = useRefreshAllPermissions();
-  const initSubscription = useInitSubscription();
-  const signIn = useSignIn();
-  const signOut = useSignOut();
-  const user = useUser();
+  const recordAppOpen = useRecordAppOpen();
   const appStateRef = useRef(AppState.currentState);
+  const hasReconciledRef = useRef(false);
 
-  // Supabase auth state listener
+  // Record app open for rating prompt logic
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_OUT' || !session) {
-          if (user) signOut();
-        } else if (event === 'SIGNED_IN' && session?.user && !user) {
-          const { data: existing } = await getUser(session.user.id);
-          // Only auto-sign-in if user completed BOTH profile setup (has a name)
-          // AND permission onboarding. Otherwise, OTPVerifyScreen handles routing
-          // through the remaining auth flow screens.
-          const { onboardingPermissionsCompleted } =
-            usePermissionStoreBase.getState();
-          if (existing && existing.name && onboardingPermissionsCompleted) {
-            signIn(dbToUser(existing));
-          }
-        }
-      },
-    );
-    return () => subscription.unsubscribe();
-  }, [signIn, signOut, user]);
-
-  // Initialize subscription state (RevenueCat disabled — stubs return Pro)
-  useEffect(() => {
-    initSubscription().catch(() => {});
-  }, [initSubscription]);
-
-  // Sync data on app foreground
-  useSyncOnForeground();
+    recordAppOpen();
+  }, [recordAppOpen]);
 
   // Check for missed tasks periodically
   useMissedTaskChecker();
@@ -99,22 +65,33 @@ export default function App() {
   // Detect abandoned timers (paused >30 min)
   useAbandonedTimerDetector();
 
-  // Stub SMS to active witnesses on missed/struggled events
-  useWitnessNotifier();
-
   // Refresh permission states on mount and when app returns to foreground
   useEffect(() => {
     refreshPermissions();
+    consumeInitialReminderTaskId()
+      .then((taskId) => {
+        if (taskId) {
+          triggerReminder(taskId);
+        }
+      })
+      .catch(() => {});
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
         refreshPermissions();
+        consumeInitialReminderTaskId()
+          .then((taskId) => {
+            if (taskId) {
+              triggerReminder(taskId);
+            }
+          })
+          .catch(() => {});
       }
       appStateRef.current = nextState;
     });
 
     return () => subscription.remove();
-  }, [refreshPermissions]);
+  }, [refreshPermissions, triggerReminder]);
 
   // Initialize notifications and set up foreground handler
   useEffect(() => {
@@ -127,6 +104,14 @@ export default function App() {
 
     return unsubscribe;
   }, [triggerReminder]);
+
+  // Reconcile scheduled reminders once after tasks hydrate
+  useEffect(() => {
+    if (hasReconciledRef.current) return;
+    if (tasks.length === 0) return;
+    hasReconciledRef.current = true;
+    reconcileNotifications(tasks).catch(() => {});
+  }, [tasks]);
 
   // Hide splash screen once fonts are loaded (or if there's an error)
   useEffect(() => {
@@ -170,7 +155,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FBF8F6', // Match splash background color
+    backgroundColor: '#FBF8F6',
   },
   loadingText: {
     fontSize: 16,

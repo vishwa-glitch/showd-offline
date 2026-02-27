@@ -99,13 +99,6 @@ export function FocusTimerScreen({ navigation, route }: FocusTimerScreenProps) {
   const category = TASK_CATEGORIES.find((c) => c.key === task.category);
   const categoryIcon = (category?.icon || 'circle') as keyof typeof Feather.glyphMap;
 
-  const witnessLine =
-    task.accountabilityType === 'real' && task.witnessName
-      ? `${task.witnessName} is watching`
-      : task.accountabilityType === 'personal' && task.personalWitnessName
-        ? `Doing this for ${task.personalWitnessName}`
-        : null;
-
   const startTimeStr = startedAt
     ? new Date(startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     : '';
@@ -159,11 +152,6 @@ export function FocusTimerScreen({ navigation, route }: FocusTimerScreenProps) {
         <Text style={styles.extensionInfo}>
           +{extensionsUsed} extension{extensionsUsed > 1 ? 's' : ''} used
         </Text>
-      )}
-
-      {/* Witness line */}
-      {witnessLine && (
-        <Text style={styles.witnessLine}>{witnessLine}</Text>
       )}
 
       {/* Buttons */}
@@ -258,11 +246,6 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.snooze,
     marginBottom: Spacing.sm,
-  },
-  witnessLine: {
-    ...Typography.bodySmall,
-    color: 'rgba(255, 255, 255, 0.5)',
-    marginBottom: Spacing['2xl'],
   },
   buttonsContainer: {
     width: '100%',

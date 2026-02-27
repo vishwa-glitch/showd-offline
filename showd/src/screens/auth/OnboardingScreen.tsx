@@ -5,7 +5,7 @@ import PagerView from 'react-native-pager-view';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography } from '../../utils/typography';
-import { Spacing, BorderRadius } from '../../utils/spacing';
+import { Spacing } from '../../utils/spacing';
 import { Button } from '../../components/ui/Button';
 import type { OnboardingScreenProps } from '../../types/navigation';
 
@@ -27,11 +27,11 @@ const PAGES = [
       'Complete it, delay it, or be honest about it. Every response is valid.',
   },
   {
-    icon: 'users' as const,
-    iconBg: Colors.strugglingLight,
-    title: 'Add someone who cares',
+    icon: 'trending-up' as const,
+    iconBg: Colors.snoozeLight,
+    title: 'Track your consistency',
     description:
-      "Choose someone you respect. They'll know when you succeed — and when you need support. Available during your free trial and with Pro.",
+      'Build streaks, see your progress, and prove to yourself what you can do.',
   },
 ];
 
@@ -42,7 +42,7 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
 
   const goNext = () => {
     if (isLastPage) {
-      navigation.navigate('PhoneInput');
+      navigation.navigate('NameSetup');
     } else {
       pagerRef.current?.setPage(currentPage + 1);
     }
@@ -53,7 +53,7 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
       <View style={styles.skipRow}>
         <Button
           label="Skip"
-          onPress={() => navigation.navigate('PhoneInput')}
+          onPress={() => navigation.navigate('NameSetup')}
           variant="text"
           textStyle={styles.skipText}
         />
@@ -89,13 +89,13 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
         ))}
       </View>
 
-      {/* Free Trial Banner */}
-      <View style={styles.trialBanner}>
-        <Feather name="gift" size={20} color={Colors.proGold} />
-        <View style={styles.trialTextContainer}>
-          <Text style={styles.trialTitle}>7 days of Pro, free</Text>
-          <Text style={styles.trialSubtitle}>
-            Witnesses, streaks & more — no payment required
+      {/* All Features Free Banner */}
+      <View style={styles.freeBanner}>
+        <Feather name="check-circle" size={20} color={Colors.primary} />
+        <View style={styles.freeTextContainer}>
+          <Text style={styles.freeTitle}>100% Free. No limits.</Text>
+          <Text style={styles.freeSubtitle}>
+            All features unlocked. No ads, no subscriptions.
           </Text>
         </View>
       </View>
@@ -170,26 +170,26 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     width: 24,
   },
-  trialBanner: {
+  freeBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.proGoldLight,
+    backgroundColor: Colors.primaryLight,
     marginHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.base,
-    borderRadius: BorderRadius.md,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.proGold,
+    borderColor: Colors.primary,
     gap: Spacing.md,
   },
-  trialTextContainer: {
+  freeTextContainer: {
     flex: 1,
   },
-  trialTitle: {
+  freeTitle: {
     ...Typography.heading3,
     color: Colors.textPrimary,
   },
-  trialSubtitle: {
+  freeSubtitle: {
     ...Typography.caption,
     color: Colors.textSecondary,
     marginTop: 2,

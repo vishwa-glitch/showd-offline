@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,20 +7,20 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  TextInput,
+  Modal,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
-import { useUser, useSignOut } from '../../store/authStore';
-import { signOut as authSignOut, deleteAccount } from '../../services/auth';
-import { useConnections } from '../../store/witnessStore';
-import { useIsPro, useIsTrialActive, useTrialDaysRemaining } from '../../store/subscriptionStore';
+import { useUserName, useUpdateName } from '../../store/onboardingStore';
 import { ReminderHealthCheck } from '../../components/permissions/ReminderHealthCheck';
-import { ProBadge } from '../../components/subscription/ProBadge';
 import { useSelectedSoundId } from '../../store/soundStore';
 import { getSoundName } from '../../utils/sounds';
+import { openPlayStoreRating } from '../../services/ratingPrompt';
 import type { SettingsScreenProps } from '../../types/navigation';
 
 interface SettingRowProps {
@@ -75,55 +75,26 @@ function SettingRow({
 }
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
-  const user = useUser();
-  const signOut = useSignOut();
-  const connections = useConnections();
-  const isPro = useIsPro();
-  const isTrialActive = useIsTrialActive();
-  const trialDaysRemaining = useTrialDaysRemaining();
-  const activeWitnessCount = connections.filter(
-    (c) => c.status === 'active' || c.status === 'invited',
-  ).length;
+  const userName = useUserName();
+  const updateName = useUpdateName();
   const selectedSoundId = useSelectedSoundId();
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [nameInput, setNameInput] = useState(userName || '');
 
-  const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await authSignOut();
-            signOut();
-          } catch (_e) {
-            signOut();
-          }
-        },
-      },
-    ]);
+  const handleEditName = () => {
+    setNameInput(userName || '');
+    setShowNameModal(true);
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This will delete all your data, tasks, and witness connections. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Account',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAccount();
-              signOut();
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete account.');
-            }
-          },
-        },
-      ]
-    );
+  const handleSaveName = () => {
+    if (nameInput.trim()) {
+      updateName(nameInput.trim());
+    }
+    setShowNameModal(false);
+  };
+
+  const handleRateApp = async () => {
+    await openPlayStoreRating();
   };
 
   return (
@@ -134,33 +105,14 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
       >
         <Text style={styles.title}>Settings</Text>
 
-        {/* Account Section */}
-        <Text style={styles.sectionTitle}>Account</Text>
+        {/* Profile Section */}
+        <Text style={styles.sectionTitle}>Profile</Text>
         <View style={styles.section}>
           <SettingRow
             icon="user"
-            label="Profile"
-            value={user?.name || 'Guest'}
-            onPress={() => navigation.navigate('EditProfile')}
-          />
-          <View style={styles.divider} />
-          <SettingRow
-            icon="phone"
-            label="Phone number"
-            value={user?.phone || ''}
-            showChevron={false}
-          />
-        </View>
-
-        {/* Subscription */}
-        <Text style={styles.sectionTitle}>Subscription</Text>
-        <View style={styles.section}>
-          <SettingRow
-            icon="zap"
-            label="Showd Pro"
-            value={isPro ? 'Active' : isTrialActive ? `Trial \u2014 ${trialDaysRemaining}d left` : 'Free'}
-            onPress={() => navigation.navigate('Paywall', { reason: 'pro_required' })}
-            rightElement={isPro ? <ProBadge /> : undefined}
+            label="Your name"
+            value={userName || 'Not set'}
+            onPress={handleEditName}
           />
         </View>
 
@@ -174,7 +126,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <SettingRow
             icon="bell"
             label="Default snooze limit"
-            value={`${user?.defaultSnoozeLimit || 3}`}
+            value="3"
             onPress={() => navigation.navigate('SnoozeLimit')}
           />
           <View style={styles.divider} />
@@ -200,23 +152,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           />
         </View>
 
-        {/* Connections */}
-        <Text style={styles.sectionTitle}>Connections</Text>
-        <View style={styles.section}>
-          <SettingRow
-            icon="users"
-            label="My witnesses"
-            value={activeWitnessCount > 0 ? `${activeWitnessCount}` : undefined}
-            onPress={() => navigation.navigate('MyWitnesses')}
-          />
-          <View style={styles.divider} />
-          <SettingRow
-            icon="heart"
-            label="People I support"
-            onPress={() => navigation.navigate('PeopleISupport')}
-          />
-        </View>
-
         {/* About */}
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.section}>
@@ -227,21 +162,9 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           />
           <View style={styles.divider} />
           <SettingRow
-            icon="message-square"
-            label="Send feedback"
+            icon="star"
+            label="Rate & Review"
             onPress={() => navigation.navigate('SendFeedback')}
-          />
-          <View style={styles.divider} />
-          <SettingRow
-            icon="file-text"
-            label="Privacy Policy"
-            onPress={() => navigation.navigate('PrivacyPolicy')}
-          />
-          <View style={styles.divider} />
-          <SettingRow
-            icon="file-text"
-            label="Terms of Service"
-            onPress={() => navigation.navigate('TermsOfService')}
           />
           <View style={styles.divider} />
           <SettingRow
@@ -252,28 +175,61 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           />
         </View>
 
-        {/* Danger Zone */}
-        <Text style={styles.sectionTitle}>Danger Zone</Text>
+        {/* Diagnostics */}
+        <Text style={styles.sectionTitle}>Diagnostics</Text>
         <View style={styles.section}>
           <SettingRow
-            icon="log-out"
-            label="Sign out"
-            danger
-            onPress={handleSignOut}
-            showChevron={false}
-          />
-          <View style={styles.divider} />
-          <SettingRow
-            icon="trash-2"
-            label="Delete account"
-            danger
-            onPress={handleDeleteAccount}
-            showChevron={false}
+            icon="tool"
+            label="Notification Debug"
+            onPress={() => navigation.navigate('NotificationDebug')}
           />
         </View>
 
         <View style={{ height: Spacing['4xl'] }} />
       </ScrollView>
+
+      {/* Name Edit Modal (works on Android unlike Alert.prompt) */}
+      <Modal
+        visible={showNameModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNameModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowNameModal(false)}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Your Name</Text>
+            <Text style={styles.modalSubtext}>What should we call you?</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={nameInput}
+              onChangeText={setNameInput}
+              placeholder="Enter your name"
+              placeholderTextColor={Colors.textTertiary}
+              autoFocus
+              maxLength={30}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowNameModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSaveButton}
+                onPress={handleSaveName}
+              >
+                <Text style={styles.modalSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -333,5 +289,68 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginLeft: 52,
+  },
+
+  // Name Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    width: '100%',
+    maxWidth: 360,
+    ...Shadows.lg,
+  },
+  modalTitle: {
+    ...Typography.heading3,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  modalSubtext: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+  },
+  modalInput: {
+    fontFamily: FontFamily.regular,
+    fontSize: 16,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.md,
+  },
+  modalCancelButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  modalCancelText: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+  },
+  modalSaveButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+  },
+  modalSaveText: {
+    ...Typography.body,
+    color: Colors.surface,
+    fontFamily: FontFamily.medium,
   },
 });

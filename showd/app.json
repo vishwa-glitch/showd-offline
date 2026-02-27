@@ -4,7 +4,7 @@
     "slug": "showd",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -22,8 +22,8 @@
     "android": {
       "package": "com.showd.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#FF7FA8"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -51,7 +51,8 @@
           }
         }
       ],
-      "./plugins/withNotifee.js"
+      "./plugins/withNotifee.js",
+      "expo-audio"
     ],
     "extra": {
       "eas": {

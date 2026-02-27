@@ -1,18 +1,60 @@
 import notifee, {
   AndroidImportance,
   AndroidVisibility,
+  AndroidCategory,
+  AlarmType,
   TriggerType,
   EventType,
   type TimestampTrigger,
   type Notification,
 } from '@notifee/react-native';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Task } from '../types/task';
-import { BUILT_IN_SOUNDS, DEFAULT_SOUND_ID, getChannelIdForSound } from '../utils/sounds';
+import { getChannelIdForSound, REMINDER_CHANNEL_ID } from '../utils/sounds';
 import { getSelectedSoundId } from '../store/soundStore';
+import { parseReminderTime } from '../utils/reminderTime';
 
 const SERVICE_CHANNEL_ID = 'showd-service';
-const VIBRATION_PATTERN = [0, 400, 200, 400, 200, 400];
+// Must be an even-length array of positive values for Notifee.
+const VIBRATION_PATTERN = [100, 400, 200, 400, 200, 400];
+const PENDING_REMINDER_KEY = 'showd.pendingReminderTaskId';
+const SCHEDULE_GRACE_MS = 2 * 60 * 1000;
+const SCHEDULE_FALLBACK_DELAY_MS = 5 * 1000;
+const SNOOZE_NOTIFICATION_SUFFIX = ':snooze';
+
+function adjustIfJustMissed(targetTime: number, nowTime: number): number | null {
+  if (targetTime > nowTime) return targetTime;
+  if (nowTime - targetTime <= SCHEDULE_GRACE_MS) {
+    return nowTime + SCHEDULE_FALLBACK_DELAY_MS;
+  }
+  return null;
+}
+
+function getSnoozeNotificationId(taskId: string): string {
+  return `${taskId}${SNOOZE_NOTIFICATION_SUFFIX}`;
+}
+
+async function persistPendingReminder(taskId: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PENDING_REMINDER_KEY, taskId);
+  } catch {
+    // Best-effort only
+  }
+}
+
+async function consumePendingReminder(): Promise<string | null> {
+  try {
+    const stored = await AsyncStorage.getItem(PENDING_REMINDER_KEY);
+    if (stored) {
+      await AsyncStorage.removeItem(PENDING_REMINDER_KEY);
+      return stored;
+    }
+  } catch {
+    // Best-effort only
+  }
+  return null;
+}
 
 /**
  * Initialize notification channels and event handlers.
@@ -20,25 +62,11 @@ const VIBRATION_PATTERN = [0, 400, 200, 400, 200, 400];
  */
 export async function initializeNotifications(): Promise<void> {
   if (Platform.OS === 'android') {
-    // Create one notification channel per built-in sound
-    for (const sound of BUILT_IN_SOUNDS) {
-      await notifee.createChannel({
-        id: `showd-reminder-${sound.id}`,
-        name: `Reminders (${sound.name})`,
-        importance: AndroidImportance.HIGH,
-        sound: sound.id,
-        vibration: true,
-        vibrationPattern: VIBRATION_PATTERN,
-        bypassDnd: true,
-      });
-    }
-
-    // Custom sound channel (Pro users)
     await notifee.createChannel({
-      id: 'showd-reminder-custom',
-      name: 'Reminders (Custom Sound)',
+      id: REMINDER_CHANNEL_ID,
+      name: 'Reminders',
       importance: AndroidImportance.HIGH,
-      sound: DEFAULT_SOUND_ID,
+      sound: 'reminder_sound',
       vibration: true,
       vibrationPattern: VIBRATION_PATTERN,
       bypassDnd: true,
@@ -85,13 +113,14 @@ export function registerForegroundHandler(
  * Must be called at the top level of the app entry (index.ts or App.tsx).
  */
 export function registerBackgroundHandler(
-  onReminderTriggered: (taskId: string) => void,
+  onReminderTriggered?: (taskId: string) => void,
 ): void {
   notifee.onBackgroundEvent(async ({ type, detail }) => {
     if (type === EventType.DELIVERED || type === EventType.PRESS) {
       const taskId = detail.notification?.data?.taskId as string | undefined;
       if (taskId) {
-        onReminderTriggered(taskId);
+        await persistPendingReminder(taskId);
+        onReminderTriggered?.(taskId);
       }
     }
   });
@@ -100,30 +129,45 @@ export function registerBackgroundHandler(
 /**
  * Calculate the next trigger timestamp for a task's reminder.
  */
-function getNextTriggerTime(task: Task): number | null {
+function getAdjustedTargetTime(
+  targetTime: number,
+  nowTime: number,
+  useGraceWindow: boolean,
+): number | null {
+  if (useGraceWindow) {
+    return adjustIfJustMissed(targetTime, nowTime);
+  }
+  return targetTime > nowTime ? targetTime : null;
+}
+
+function getNextTriggerTime(task: Task, useGraceWindow: boolean): number | null {
   const now = new Date();
-  const [hours, minutes] = task.reminderTime.split(':').map(Number);
+  const parsedTime = parseReminderTime(task.reminderTime);
+  if (!parsedTime) return null;
+  const { hours, minutes } = parsedTime;
 
   if (task.frequency === 'once') {
     if (task.oneTimeDate) {
       const target = new Date(task.oneTimeDate);
       target.setHours(hours, minutes, 0, 0);
-      return target.getTime() > now.getTime() ? target.getTime() : null;
+      const adjusted = getAdjustedTargetTime(target.getTime(), now.getTime(), useGraceWindow);
+      return adjusted ?? null;
     }
     // If no date, schedule for today or tomorrow
     const today = new Date();
     today.setHours(hours, minutes, 0, 0);
-    if (today.getTime() > now.getTime()) return today.getTime();
-    // Already past today — no reschedule for one-time
+    const adjusted = getAdjustedTargetTime(today.getTime(), now.getTime(), useGraceWindow);
+    if (adjusted != null) return adjusted;
+    // Already past today ? no reschedule for one-time
     return null;
   }
 
   if (task.frequency === 'daily') {
     const target = new Date();
     target.setHours(hours, minutes, 0, 0);
-    if (target.getTime() <= now.getTime()) {
-      target.setDate(target.getDate() + 1);
-    }
+    const adjusted = getAdjustedTargetTime(target.getTime(), now.getTime(), useGraceWindow);
+    if (adjusted != null) return adjusted;
+    target.setDate(target.getDate() + 1);
     return target.getTime();
   }
 
@@ -137,6 +181,10 @@ function getNextTriggerTime(task: Task): number | null {
       const target = new Date();
       target.setDate(target.getDate() + (diff === 0 ? 0 : diff));
       target.setHours(hours, minutes, 0, 0);
+      if (diff === 0) {
+        const adjusted = getAdjustedTargetTime(target.getTime(), now.getTime(), useGraceWindow);
+        if (adjusted != null) return adjusted;
+      }
       if (target.getTime() > now.getTime()) return target.getTime();
     }
     // Wrap to next week's first day
@@ -151,43 +199,54 @@ function getNextTriggerTime(task: Task): number | null {
   if (task.frequency === 'custom' && task.customIntervalDays) {
     const target = new Date();
     target.setHours(hours, minutes, 0, 0);
-    if (target.getTime() <= now.getTime()) {
-      target.setDate(target.getDate() + task.customIntervalDays);
-    }
+    const adjusted = getAdjustedTargetTime(target.getTime(), now.getTime(), useGraceWindow);
+    if (adjusted != null) return adjusted;
+    target.setDate(target.getDate() + task.customIntervalDays);
     return target.getTime();
   }
 
   return null;
 }
 
+function buildTimestampTrigger(timestamp: number): TimestampTrigger {
+  const trigger: TimestampTrigger = {
+    type: TriggerType.TIMESTAMP,
+    timestamp,
+  };
+
+  if (Platform.OS === 'android') {
+    trigger.alarmManager = {
+      type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE,
+    };
+  }
+
+  return trigger;
+}
+
 /**
  * Build the notification payload for a task.
  */
-function buildNotification(task: Task): Notification {
-  const witnessLabel =
-    task.accountabilityType === 'real' && task.witnessName
-      ? `${task.witnessName} is counting on you`
-      : task.accountabilityType === 'personal' && task.personalWitnessName
-        ? `Don't let ${task.personalWitnessName} down`
-        : 'Time to show up for yourself';
-
+function buildNotification(task: Task, notificationId: string = task.id): Notification {
   // Use the globally selected sound (offline, from AsyncStorage-persisted store)
   const soundId = getSelectedSoundId();
   const channelId = getChannelIdForSound(soundId);
 
   return {
-    id: task.id,
+    id: notificationId,
     title: task.name,
-    body: witnessLabel,
+    body: 'Time to show up for yourself',
     data: { taskId: task.id },
     android: {
       channelId,
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
-      fullScreenAction: { id: 'default' },
+      category: AndroidCategory.ALARM,
+      fullScreenAction: { id: 'default', launchActivity: 'default' },
       ongoing: true,
-      pressAction: { id: 'default' },
+      pressAction: { id: 'default', launchActivity: 'default' },
       vibrationPattern: VIBRATION_PATTERN,
+      // Add heavy customization to ensure it grabs attention
+      lights: ['red', 300, 600],
     },
     ios: {
       sound: `${soundId}.mp3`,
@@ -196,21 +255,53 @@ function buildNotification(task: Task): Notification {
   };
 }
 
+async function dismissDisplayedRemindersForTask(taskId: string): Promise<void> {
+  try {
+    const displayed = await notifee.getDisplayedNotifications();
+    const toCancel = displayed.filter(
+      (item) => item.notification?.data?.taskId === taskId,
+    );
+
+    for (const item of toCancel) {
+      const id = item.notification?.id;
+      if (id) {
+        await notifee.cancelNotification(id);
+      }
+    }
+  } catch {
+    // Best-effort only
+  }
+}
+
 /**
  * Schedule a notification for a task's next reminder time.
  */
 export async function scheduleTaskReminder(task: Task): Promise<void> {
   if (!task.isActive) return;
 
-  const triggerTime = getNextTriggerTime(task);
+  const triggerTime = getNextTriggerTime(task, true);
   if (!triggerTime) return;
 
-  const trigger: TimestampTrigger = {
-    type: TriggerType.TIMESTAMP,
-    timestamp: triggerTime,
-  };
+  const trigger = buildTimestampTrigger(triggerTime);
 
-  const notification = buildNotification(task);
+  const notification = buildNotification(task, task.id);
+
+  await notifee.createTriggerNotification(notification, trigger);
+}
+
+/**
+ * Schedule the next regular reminder window for recurring tasks.
+ * This intentionally does NOT use the near-miss grace window.
+ */
+export async function scheduleNextRegularReminder(task: Task): Promise<void> {
+  if (!task.isActive) return;
+  if (task.frequency === 'once') return;
+
+  const triggerTime = getNextTriggerTime(task, false);
+  if (!triggerTime) return;
+
+  const trigger = buildTimestampTrigger(triggerTime);
+  const notification = buildNotification(task, task.id);
 
   await notifee.createTriggerNotification(notification, trigger);
 }
@@ -219,22 +310,57 @@ export async function scheduleTaskReminder(task: Task): Promise<void> {
  * Reschedule a notification 15 minutes from now (snooze).
  */
 export async function rescheduleAfterSnooze(task: Task): Promise<void> {
-  const trigger: TimestampTrigger = {
-    type: TriggerType.TIMESTAMP,
-    timestamp: Date.now() + 15 * 60 * 1000,
-  };
+  // Dismiss current ringing reminder UI (if any), but keep future regular schedules.
+  await cancelActiveReminder(task.id);
 
-  const notification = buildNotification(task);
+  const trigger = buildTimestampTrigger(Date.now() + 15 * 60 * 1000);
+
+  const snoozeNotificationId = getSnoozeNotificationId(task.id);
+  const notification = buildNotification(task, snoozeNotificationId);
 
   await notifee.createTriggerNotification(notification, trigger);
+
+  // Keep the base daily/weekly/custom cadence on the original reminder time.
+  await scheduleNextRegularReminder(task);
 }
 
 /**
  * Cancel a scheduled notification for a task.
  */
 export async function cancelTaskReminder(taskId: string): Promise<void> {
+  const snoozeNotificationId = getSnoozeNotificationId(taskId);
+
   await notifee.cancelNotification(taskId);
   await notifee.cancelTriggerNotification(taskId);
+  await notifee.cancelNotification(snoozeNotificationId);
+  await notifee.cancelTriggerNotification(snoozeNotificationId);
+  await dismissDisplayedRemindersForTask(taskId);
+}
+
+/**
+ * Cancel the active reminder notification for a task (if any).
+ * Use after user action to dismiss the full-screen UI.
+ */
+export async function cancelActiveReminder(taskId: string): Promise<void> {
+  const snoozeNotificationId = getSnoozeNotificationId(taskId);
+
+  await dismissDisplayedRemindersForTask(taskId);
+
+  try {
+    await notifee.cancelNotification(taskId);
+  } catch {
+    // Best-effort
+  }
+  try {
+    await notifee.cancelNotification(snoozeNotificationId);
+  } catch {
+    // Best-effort
+  }
+  try {
+    await notifee.cancelTriggerNotification(snoozeNotificationId);
+  } catch {
+    // Best-effort
+  }
 }
 
 /**
@@ -249,8 +375,38 @@ export async function cancelAllReminders(): Promise<void> {
  * Display an immediate notification (for testing or instant reminders).
  */
 export async function displayImmediateReminder(task: Task): Promise<void> {
-  const notification = buildNotification(task);
+  const notification = buildNotification(task, task.id);
   await notifee.displayNotification(notification);
+}
+
+/**
+ * Resolve any reminder that fired while the app was backgrounded/killed.
+ * Uses initial notification, pending background cache, or displayed notifications.
+ */
+export async function consumeInitialReminderTaskId(): Promise<string | null> {
+  try {
+    const initial = await notifee.getInitialNotification();
+    const initialTaskId = initial?.notification?.data?.taskId as string | undefined;
+    if (initialTaskId) return initialTaskId;
+  } catch {
+    // ignore
+  }
+
+  const pending = await consumePendingReminder();
+  if (pending) return pending;
+
+  try {
+    const displayed = await notifee.getDisplayedNotifications();
+    const match = displayed.find(
+      (item) => !!item.notification?.data?.taskId,
+    );
+    const displayedTaskId = match?.notification?.data?.taskId as string | undefined;
+    if (displayedTaskId) return displayedTaskId;
+  } catch {
+    // ignore
+  }
+
+  return null;
 }
 
 /**

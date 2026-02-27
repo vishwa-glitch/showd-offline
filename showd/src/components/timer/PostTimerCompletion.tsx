@@ -49,11 +49,8 @@ export function PostTimerCompletion() {
   const extensionsUsed = useTimerExtensionsUsed();
   const activeEventId = useActiveTimerEventId();
   const activeTaskId = useActiveTimerTaskId();
-  const totalPausedSeconds = useTimerTotalPausedSeconds();
-  const startedAt = useTimerStartedAt();
   const completeTimer = useCompleteTimer();
   const extendTimer = useExtendTimer();
-  const dismissPostTimer = useDismissPostTimer();
   const getTaskById = useGetTaskById();
   const completeTask = useCompleteTask();
   const openStrugglingSheet = useOpenStrugglingSheet();
@@ -76,13 +73,6 @@ export function PostTimerCompletion() {
 
   const category = TASK_CATEGORIES.find((c) => c.key === task.category);
   const categoryIcon = (category?.icon || 'circle') as keyof typeof Feather.glyphMap;
-
-  const witnessLine =
-    task.accountabilityType === 'real' && task.witnessName
-      ? `${task.witnessName} was counting on you`
-      : task.accountabilityType === 'personal' && task.personalWitnessName
-        ? `You showed up for ${task.personalWitnessName}`
-        : 'You showed up for yourself';
 
   const handleDone = useCallback(() => {
     const streak = completeTask(task.id);
@@ -126,8 +116,8 @@ export function PostTimerCompletion() {
         {formatDuration(completedDurationSeconds)} completed
       </Text>
 
-      {/* Witness line */}
-      <Text style={styles.witnessLine}>{witnessLine}</Text>
+      {/* Motivation line */}
+      <Text style={styles.motivationLine}>You showed up for yourself</Text>
 
       {/* Action buttons */}
       <View style={styles.buttonsContainer}>
@@ -222,7 +212,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
-  witnessLine: {
+  motivationLine: {
     ...Typography.reminderWitness,
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',

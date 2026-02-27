@@ -2,9 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { WelcomeScreen } from '../screens/auth/WelcomeScreen';
 import { OnboardingScreen } from '../screens/auth/OnboardingScreen';
-import { PhoneInputScreen } from '../screens/auth/PhoneInputScreen';
-import { OTPVerifyScreen } from '../screens/auth/OTPVerifyScreen';
-import { ProfileSetupScreen } from '../screens/auth/ProfileSetupScreen';
+import { NameSetupScreen } from '../screens/auth/NameSetupScreen';
 import { PermissionSetupScreen } from '../screens/auth/PermissionSetupScreen';
 
 import type { AuthStackParamList } from '../types/navigation';
@@ -21,11 +19,8 @@ export function AuthStack() {
     >
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-      <Stack.Screen name="PhoneInput" component={PhoneInputScreen} />
-      <Stack.Screen name="OTPVerify" component={OTPVerifyScreen} />
-      <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+      <Stack.Screen name="NameSetup" component={NameSetupScreen} />
       <Stack.Screen name="PermissionSetup" component={PermissionSetupScreen} />
-
     </Stack.Navigator>
   );
 }
