@@ -115,16 +115,42 @@ const withFullScreenIntentDetector = (config) => {
 
     const moduleSource = `package ${androidPackage};
 
+import android.app.KeyguardManager;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.UiThreadUtil;
+import com.facebook.react.bridge.WritableMap;
 
 public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
+  private static final String PREFS_NAME = "showd_overlay_prefs";
+  private static final String KEY_PENDING_ACTION = "pending_action";
+  private static final String KEY_PENDING_TASK_ID = "pending_task_id";
+
+  private View overlayView = null;
+  private WindowManager windowManager = null;
+
   ${FULL_SCREEN_MODULE_NAME}(ReactApplicationContext reactContext) {
     super(reactContext);
   }
@@ -133,6 +159,126 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
   @Override
   public String getName() {
     return "${FULL_SCREEN_MODULE_NAME}";
+  }
+
+  private int dp(int value) {
+    return (int) TypedValue.applyDimension(
+      TypedValue.COMPLEX_UNIT_DIP,
+      value,
+      getReactApplicationContext().getResources().getDisplayMetrics()
+    );
+  }
+
+  private GradientDrawable roundedRect(String color, int radiusDp) {
+    GradientDrawable drawable = new GradientDrawable();
+    drawable.setColor(Color.parseColor(color));
+    drawable.setCornerRadius(dp(radiusDp));
+    return drawable;
+  }
+
+  private GradientDrawable circle(String fill, String stroke, int strokeDp) {
+    GradientDrawable drawable = new GradientDrawable();
+    drawable.setShape(GradientDrawable.OVAL);
+    drawable.setColor(Color.parseColor(fill));
+    drawable.setStroke(dp(strokeDp), Color.parseColor(stroke));
+    return drawable;
+  }
+
+  private TextView createActionButton(
+    Context context,
+    String label,
+    String bgColor,
+    View.OnClickListener listener
+  ) {
+    TextView btn = new TextView(context);
+    btn.setText(label);
+    btn.setTextColor(Color.WHITE);
+    btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+    btn.setGravity(Gravity.CENTER);
+    btn.setTypeface(btn.getTypeface(), Typeface.BOLD);
+    btn.setPadding(dp(16), dp(18), dp(16), dp(18));
+    btn.setMinHeight(dp(64));
+    btn.setBackground(roundedRect(bgColor, 16));
+    btn.setOnClickListener(listener);
+    btn.setClickable(true);
+    btn.setFocusable(true);
+    return btn;
+  }
+
+  private String extractWitnessInitials(String messageBody) {
+    if (messageBody == null) return "";
+    String marker = " is counting on you";
+    if (!messageBody.endsWith(marker)) return "";
+
+    String witnessName = messageBody.substring(0, messageBody.length() - marker.length()).trim();
+    if (witnessName.length() == 0) return "";
+
+    String[] parts = witnessName.split("\\\\s+");
+    if (parts.length == 0) return "";
+    if (parts.length == 1) {
+      String first = parts[0].toUpperCase();
+      return first.substring(0, Math.min(2, first.length()));
+    }
+    String a = parts[0].substring(0, 1).toUpperCase();
+    String b = parts[1].substring(0, 1).toUpperCase();
+    return a + b;
+  }
+
+  private void savePendingAction(String action, String taskId) {
+    SharedPreferences prefs = getReactApplicationContext()
+      .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+    prefs.edit()
+      .putString(KEY_PENDING_ACTION, action)
+      .putString(KEY_PENDING_TASK_ID, taskId)
+      .apply();
+  }
+
+  private void clearPendingAction() {
+    SharedPreferences prefs = getReactApplicationContext()
+      .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+    prefs.edit()
+      .remove(KEY_PENDING_ACTION)
+      .remove(KEY_PENDING_TASK_ID)
+      .apply();
+  }
+
+  private void removeOverlayInternal() {
+    try {
+      if (windowManager != null && overlayView != null) {
+        windowManager.removeView(overlayView);
+      }
+    } catch (Throwable ignored) {
+      // best effort
+    } finally {
+      overlayView = null;
+    }
+  }
+
+  private void openApp(String taskId, String action) {
+    Context context = getReactApplicationContext();
+    Intent launchIntent = context.getPackageManager()
+      .getLaunchIntentForPackage(context.getPackageName());
+    if (launchIntent == null) return;
+
+    if (taskId != null) {
+      launchIntent.putExtra("showd_task_id", taskId);
+    }
+    if (action != null) {
+      launchIntent.putExtra("showd_overlay_action", action);
+    }
+
+    launchIntent.addFlags(
+      Intent.FLAG_ACTIVITY_NEW_TASK
+        | Intent.FLAG_ACTIVITY_SINGLE_TOP
+        | Intent.FLAG_ACTIVITY_CLEAR_TOP
+    );
+    context.startActivity(launchIntent);
+  }
+
+  private boolean isUnlocked() {
+    KeyguardManager keyguard =
+      (KeyguardManager) getReactApplicationContext().getSystemService(Context.KEYGUARD_SERVICE);
+    return keyguard == null || !keyguard.isKeyguardLocked();
   }
 
   @ReactMethod
@@ -149,6 +295,289 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
       promise.resolve(allowed);
     } catch (Throwable error) {
       promise.resolve(true);
+    }
+  }
+
+  @ReactMethod
+  public void canDrawOverlays(Promise promise) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+      promise.resolve(true);
+      return;
+    }
+
+    try {
+      boolean allowed = Settings.canDrawOverlays(getReactApplicationContext());
+      promise.resolve(allowed);
+    } catch (Throwable error) {
+      promise.resolve(false);
+    }
+  }
+
+  @ReactMethod
+  public void openOverlayPermissionSettings(Promise promise) {
+    try {
+      Context context = getReactApplicationContext();
+      Intent intent = new Intent(
+        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+        Uri.parse("package:" + context.getPackageName())
+      );
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      context.startActivity(intent);
+      promise.resolve(true);
+    } catch (Throwable error) {
+      promise.resolve(false);
+    }
+  }
+
+  @ReactMethod
+  public void openAppForReminderIfUnlocked(String taskId, Promise promise) {
+    try {
+      Context context = getReactApplicationContext();
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+        promise.resolve(false);
+        return;
+      }
+      if (!isUnlocked()) {
+        promise.resolve(false);
+        return;
+      }
+      openApp(taskId, "open");
+      promise.resolve(true);
+    } catch (Throwable error) {
+      promise.resolve(false);
+    }
+  }
+
+  @ReactMethod
+  public void showReminderOverlay(String taskId, String title, String body, Promise promise) {
+    UiThreadUtil.runOnUiThread(() -> {
+      try {
+        Context context = getReactApplicationContext();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+          promise.resolve(false);
+          return;
+        }
+        if (!isUnlocked()) {
+          promise.resolve(false);
+          return;
+        }
+
+        if (windowManager == null) {
+          windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        }
+        if (windowManager == null) {
+          promise.resolve(false);
+          return;
+        }
+
+        removeOverlayInternal();
+
+        FrameLayout root = new FrameLayout(context);
+        root.setClickable(true);
+        root.setFocusable(true);
+        root.setBackgroundColor(Color.parseColor("#F20F0A14"));
+
+        LinearLayout content = new LinearLayout(context);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setGravity(Gravity.CENTER_HORIZONTAL);
+        content.setPadding(dp(32), 0, dp(32), 0);
+
+        FrameLayout.LayoutParams contentParams = new FrameLayout.LayoutParams(
+          FrameLayout.LayoutParams.MATCH_PARENT,
+          FrameLayout.LayoutParams.WRAP_CONTENT,
+          Gravity.CENTER
+        );
+        content.setLayoutParams(contentParams);
+
+        TextView categoryIcon = new TextView(context);
+        categoryIcon.setText("◉");
+        categoryIcon.setTextColor(Color.parseColor("#E6FFFFFF"));
+        categoryIcon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 48);
+        LinearLayout.LayoutParams categoryParams = new LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.WRAP_CONTENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        categoryParams.bottomMargin = dp(24);
+        categoryIcon.setLayoutParams(categoryParams);
+
+        String initials = extractWitnessInitials(body);
+
+        TextView pulseCircle = new TextView(context);
+        pulseCircle.setText(initials.length() > 0 ? initials : "U");
+        pulseCircle.setTextColor(Color.parseColor("#E6FFFFFF"));
+        pulseCircle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+        pulseCircle.setTypeface(pulseCircle.getTypeface(), Typeface.BOLD);
+        pulseCircle.setGravity(Gravity.CENTER);
+        pulseCircle.setBackground(circle("#4DFF4D6A", "#99FF4D6A", 2));
+        LinearLayout.LayoutParams pulseParams = new LinearLayout.LayoutParams(dp(96), dp(96));
+        pulseParams.bottomMargin = dp(32);
+        pulseCircle.setLayoutParams(pulseParams);
+
+        TextView titleView = new TextView(context);
+        titleView.setText(title != null && title.length() > 0 ? title : "Reminder");
+        titleView.setTextColor(Color.WHITE);
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
+        titleView.setGravity(Gravity.CENTER);
+        titleView.setTypeface(titleView.getTypeface(), Typeface.BOLD);
+        titleView.setMaxLines(3);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        titleParams.bottomMargin = dp(12);
+        titleView.setLayoutParams(titleParams);
+
+        TextView bodyView = new TextView(context);
+        bodyView.setText(body != null && body.length() > 0 ? body : "Time to show up for yourself");
+        bodyView.setTextColor(Color.parseColor("#CCFFFFFF"));
+        bodyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        bodyView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        bodyParams.bottomMargin = dp(28);
+        bodyView.setLayoutParams(bodyParams);
+
+        LinearLayout buttons = new LinearLayout(context);
+        buttons.setOrientation(LinearLayout.VERTICAL);
+        buttons.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout.LayoutParams buttonsParams = new LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        buttonsParams.topMargin = dp(24);
+        buttons.setLayoutParams(buttonsParams);
+
+        TextView doneButton = createActionButton(
+          context,
+          "Done",
+          "#2ECC71",
+          v -> {
+            savePendingAction("done", taskId);
+            removeOverlayInternal();
+            openApp(taskId, "done");
+          }
+        );
+        TextView snoozeButton = createActionButton(
+          context,
+          "Snooze 15min",
+          "#F5A623",
+          v -> {
+            savePendingAction("snooze", taskId);
+            removeOverlayInternal();
+            openApp(taskId, "snooze");
+          }
+        );
+        TextView strugglingButton = createActionButton(
+          context,
+          "Struggling Today",
+          "#7C8DB5",
+          v -> {
+            clearPendingAction();
+            removeOverlayInternal();
+            openApp(taskId, "open");
+          }
+        );
+
+        LinearLayout.LayoutParams eachBtn = new LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        eachBtn.bottomMargin = dp(12);
+        doneButton.setLayoutParams(eachBtn);
+
+        LinearLayout.LayoutParams eachBtn2 = new LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        eachBtn2.bottomMargin = dp(12);
+        snoozeButton.setLayoutParams(eachBtn2);
+
+        LinearLayout.LayoutParams eachBtn3 = new LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        strugglingButton.setLayoutParams(eachBtn3);
+
+        TextView branding = new TextView(context);
+        branding.setText("Showd.");
+        branding.setTextColor(Color.parseColor("#1AFFFFFF"));
+        branding.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        branding.setTypeface(branding.getTypeface(), Typeface.BOLD);
+        FrameLayout.LayoutParams brandParams = new FrameLayout.LayoutParams(
+          FrameLayout.LayoutParams.WRAP_CONTENT,
+          FrameLayout.LayoutParams.WRAP_CONTENT,
+          Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
+        );
+        brandParams.bottomMargin = dp(44);
+        branding.setLayoutParams(brandParams);
+
+        buttons.addView(doneButton);
+        buttons.addView(snoozeButton);
+        buttons.addView(strugglingButton);
+
+        content.addView(categoryIcon);
+        content.addView(pulseCircle);
+        content.addView(titleView);
+        content.addView(bodyView);
+        content.addView(buttons);
+
+        root.addView(content);
+        root.addView(branding);
+
+        int overlayType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+          ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+          : WindowManager.LayoutParams.TYPE_PHONE;
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+          WindowManager.LayoutParams.MATCH_PARENT,
+          WindowManager.LayoutParams.MATCH_PARENT,
+          overlayType,
+          WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            | WindowManager.LayoutParams.FLAG_FULLSCREEN,
+          PixelFormat.TRANSLUCENT
+        );
+        params.gravity = Gravity.TOP | Gravity.START;
+
+        windowManager.addView(root, params);
+        overlayView = root;
+        promise.resolve(true);
+      } catch (Throwable error) {
+        promise.resolve(false);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void hideReminderOverlay(Promise promise) {
+    UiThreadUtil.runOnUiThread(() -> {
+      removeOverlayInternal();
+      promise.resolve(true);
+    });
+  }
+
+  @ReactMethod
+  public void consumePendingOverlayAction(Promise promise) {
+    try {
+      SharedPreferences prefs = getReactApplicationContext()
+        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+      String action = prefs.getString(KEY_PENDING_ACTION, null);
+      String taskId = prefs.getString(KEY_PENDING_TASK_ID, null);
+
+      if (action == null || taskId == null) {
+        promise.resolve(null);
+        return;
+      }
+
+      clearPendingAction();
+      WritableMap map = Arguments.createMap();
+      map.putString("action", action);
+      map.putString("taskId", taskId);
+      promise.resolve(map);
+    } catch (Throwable error) {
+      promise.resolve(null);
     }
   }
 }
@@ -204,6 +633,7 @@ const withNotifee = (config) => {
 
     const permissions = [
       'android.permission.USE_FULL_SCREEN_INTENT',
+      'android.permission.SYSTEM_ALERT_WINDOW',
       'android.permission.WAKE_LOCK',
       'android.permission.RECEIVE_BOOT_COMPLETED',
       'android.permission.VIBRATE',
@@ -248,4 +678,3 @@ module.exports = (config) => {
   config = withFullScreenIntentDetector(config);
   return config;
 };
-

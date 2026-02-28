@@ -29,6 +29,7 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "USE_FULL_SCREEN_INTENT",
+        "SYSTEM_ALERT_WINDOW",
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "POST_NOTIFICATIONS",

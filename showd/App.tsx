@@ -18,15 +18,31 @@ import {
   registerBackgroundHandler,
   consumeInitialReminderTaskId,
   reconcileNotifications,
+  cancelActiveReminder,
+  rescheduleAfterSnooze,
+  scheduleNextRegularReminder,
 } from './src/services/notifications';
-import { useTriggerReminder } from './src/store/reminderStore';
-import { useTasks } from './src/store/taskStore';
+import {
+  useTriggerReminder,
+  useActiveTaskId,
+  useDismissReminder,
+} from './src/store/reminderStore';
+import {
+  useTasks,
+  useCompleteTask,
+  useSnoozeTask,
+  useGetTaskById,
+} from './src/store/taskStore';
 import { useMissedTaskChecker } from './src/hooks/useMissedTaskChecker';
 import { useTimerTick } from './src/hooks/useTimerTick';
 import { useAbandonedTimerDetector } from './src/hooks/useAbandonedTimerDetector';
 import { useRefreshAllPermissions } from './src/store/permissionStore';
 import { initializeTimerChannel } from './src/services/timerNotification';
 import { useRecordAppOpen } from './src/store/ratingStore';
+import {
+  consumePendingSystemOverlayAction,
+  hideSystemReminderOverlay,
+} from './src/services/fullScreenIntentAccess';
 
 // Register background notification handler at module level (required by Notifee)
 registerBackgroundHandler();
@@ -45,6 +61,11 @@ export default function App() {
   });
 
   const triggerReminder = useTriggerReminder();
+  const activeReminderTaskId = useActiveTaskId();
+  const dismissReminder = useDismissReminder();
+  const completeTask = useCompleteTask();
+  const snoozeTask = useSnoozeTask();
+  const getTaskById = useGetTaskById();
   const tasks = useTasks();
   const refreshPermissions = useRefreshAllPermissions();
   const recordAppOpen = useRecordAppOpen();
@@ -65,33 +86,69 @@ export default function App() {
   // Detect abandoned timers (paused >30 min)
   useAbandonedTimerDetector();
 
+  const processPendingOverlayAction = React.useCallback(async (): Promise<string | null> => {
+    const pending = await consumePendingSystemOverlayAction();
+    if (!pending) return null;
+
+    const { action, taskId } = pending;
+    if (!taskId || action === 'open') return null;
+
+    const task = getTaskById(taskId);
+    if (!task) return taskId;
+
+    if (action === 'done') {
+      completeTask(taskId);
+      await cancelActiveReminder(taskId).catch(() => {});
+      await scheduleNextRegularReminder(task).catch(() => {});
+      if (activeReminderTaskId === taskId) dismissReminder();
+      return taskId;
+    }
+
+    if (action === 'snooze') {
+      const success = snoozeTask(taskId);
+      if (success) {
+        await rescheduleAfterSnooze(task).catch(() => {});
+        if (activeReminderTaskId === taskId) dismissReminder();
+        return taskId;
+      }
+      return null;
+    }
+
+    return null;
+  }, [
+    getTaskById,
+    completeTask,
+    activeReminderTaskId,
+    dismissReminder,
+    snoozeTask,
+  ]);
+
+  const syncReminderEntrypoints = React.useCallback(async () => {
+    await hideSystemReminderOverlay().catch(() => {});
+
+    const handledTaskId = await processPendingOverlayAction();
+    const triggeredTaskId = await consumeInitialReminderTaskId();
+
+    if (triggeredTaskId && triggeredTaskId !== handledTaskId) {
+      triggerReminder(triggeredTaskId);
+    }
+  }, [processPendingOverlayAction, triggerReminder]);
+
   // Refresh permission states on mount and when app returns to foreground
   useEffect(() => {
     refreshPermissions();
-    consumeInitialReminderTaskId()
-      .then((taskId) => {
-        if (taskId) {
-          triggerReminder(taskId);
-        }
-      })
-      .catch(() => {});
+    syncReminderEntrypoints().catch(() => {});
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
         refreshPermissions();
-        consumeInitialReminderTaskId()
-          .then((taskId) => {
-            if (taskId) {
-              triggerReminder(taskId);
-            }
-          })
-          .catch(() => {});
+        syncReminderEntrypoints().catch(() => {});
       }
       appStateRef.current = nextState;
     });
 
     return () => subscription.remove();
-  }, [refreshPermissions, triggerReminder]);
+  }, [refreshPermissions, syncReminderEntrypoints]);
 
   // Initialize notifications and set up foreground handler
   useEffect(() => {

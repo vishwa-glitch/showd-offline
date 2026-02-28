@@ -57,8 +57,8 @@ const usePermissionStoreBase = create<PermissionState>()(
       },
 
       hasMissingPermissions: () => {
-        const { notificationsGranted, exactAlarmGranted, batteryOptimizationDisabled, fullScreenIntentGranted } = get();
-        return !notificationsGranted || !exactAlarmGranted || !batteryOptimizationDisabled || !fullScreenIntentGranted;
+        const { notificationsGranted, exactAlarmGranted, batteryOptimizationDisabled, overlayGranted, fullScreenIntentGranted } = get();
+        return !notificationsGranted || !exactAlarmGranted || !batteryOptimizationDisabled || !overlayGranted || !fullScreenIntentGranted;
       },
 
       refreshAllPermissions: async () => {

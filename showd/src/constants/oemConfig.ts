@@ -183,3 +183,161 @@ export function getOEMBatterySettingsIntent(brand: OEMBrand): string | null {
   };
   return intents[brand] ?? null;
 }
+
+/**
+ * Brand-specific full-screen intent/notification permission instructions.
+ * Used as fallback when the direct system intent fails.
+ */
+export function getFullScreenIntentInstructions(brand: OEMBrand): OEMStep[] {
+  switch (brand) {
+    case 'samsung':
+      return [
+        {
+          title: 'Open Settings',
+          description: 'Go to Settings \u2192 Apps',
+        },
+        {
+          title: 'Open the \u22ee menu',
+          description: 'Tap the three-dot menu (\u22ee) in the top-right corner',
+        },
+        {
+          title: 'Special access',
+          description: 'Tap "Special access"',
+        },
+        {
+          title: 'Full screen notifications',
+          description: 'Tap "Full screen notifications"',
+        },
+        {
+          title: 'Enable Showd',
+          description: 'Find Showd and turn the toggle ON',
+        },
+      ];
+    case 'xiaomi':
+      return [
+        {
+          title: 'Open Settings',
+          description: 'Go to Settings \u2192 Apps \u2192 Manage apps',
+        },
+        {
+          title: 'Find Showd',
+          description: 'Search for "Showd" and tap on it',
+        },
+        {
+          title: 'Other permissions',
+          description: 'Tap "Other permissions"',
+        },
+        {
+          title: 'Enable display permissions',
+          description: 'Turn ON:\n\u2022 Show on Lock screen\n\u2022 Display pop-up windows\n\u2022 Display pop-up windows while running in background',
+        },
+        {
+          title: 'Enable Autostart',
+          description: 'Go back and also enable "Autostart" for Showd',
+        },
+      ];
+    case 'oppo':
+      return [
+        {
+          title: 'Open Settings',
+          description: 'Go to Settings \u2192 Apps \u2192 Special app access',
+        },
+        {
+          title: 'Full screen notifications',
+          description: 'Tap "Full screen notifications"',
+        },
+        {
+          title: 'Enable Showd',
+          description: 'Find Showd and turn the toggle ON',
+        },
+      ];
+    case 'oneplus':
+      return [
+        {
+          title: 'Open Settings',
+          description: 'Go to Settings \u2192 Apps \u2192 Special app access',
+        },
+        {
+          title: 'Full screen notifications',
+          description: 'Tap "Full screen notifications"',
+        },
+        {
+          title: 'Enable Showd',
+          description: 'Find Showd and turn the toggle ON',
+        },
+      ];
+    case 'realme':
+      return [
+        {
+          title: 'Open Settings',
+          description: 'Go to Settings \u2192 Apps \u2192 Special app access',
+        },
+        {
+          title: 'Send full screen notifications',
+          description: 'Tap "Send full screen notifications"',
+        },
+        {
+          title: 'Enable Showd',
+          description: 'Find Showd and turn the toggle ON',
+        },
+      ];
+    case 'vivo':
+      return [
+        {
+          title: 'Open Settings',
+          description: 'Go to Settings \u2192 Apps & Permissions',
+        },
+        {
+          title: 'Permission management',
+          description: 'Tap "Permission management"',
+        },
+        {
+          title: 'Find Showd',
+          description: 'Search for "Showd" and tap on it',
+        },
+        {
+          title: 'Display on lock screen',
+          description: 'Enable "Display on lock screen" permission',
+        },
+      ];
+    case 'huawei':
+      return [
+        {
+          title: 'Open Settings',
+          description: 'Go to Settings \u2192 Apps \u2192 Apps',
+        },
+        {
+          title: 'Find Showd',
+          description: 'Search for "Showd" and tap on it',
+        },
+        {
+          title: 'Notifications',
+          description: 'Tap "Notifications" \u2192 Enable "Allow notifications" and "Banners"',
+        },
+        {
+          title: 'Special access',
+          description: 'Go back to Settings \u2192 Apps \u2192 Special access \u2192 Battery optimization \u2192 Set Showd to "Don\'t optimize"',
+        },
+      ];
+    default:
+      // Standard Android (Google Pixel, etc.)
+      return [
+        {
+          title: 'Open Settings',
+          description: 'Go to Settings \u2192 Apps',
+        },
+        {
+          title: 'Special app access',
+          description: 'Tap "Special app access" (at the bottom)',
+        },
+        {
+          title: 'Manage full screen intents',
+          description: 'Tap "Manage full screen intents" (or "Full screen notifications")',
+        },
+        {
+          title: 'Enable Showd',
+          description: 'Find Showd and turn the toggle ON',
+        },
+      ];
+  }
+}

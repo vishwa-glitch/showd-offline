@@ -7,6 +7,7 @@ import {
   Platform,
   Alert,
   Linking,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -15,11 +16,13 @@ import { Typography } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
 import { Button } from '../../components/ui/Button';
 import { PermissionItem } from '../../components/permissions/PermissionItem';
+import { FullScreenIntentGuide } from '../../components/permissions/FullScreenIntentGuide';
 import {
   requestNotificationPermission,
   requestExactAlarmPermission,
   requestBatteryOptimizationDisable,
   requestFullScreenIntentPermission,
+  requestOverlayPermission,
   checkAllPermissions,
 } from '../../services/permissions';
 
@@ -36,9 +39,11 @@ export function PermissionSetupScreen({ navigation }: PermissionSetupScreenProps
   const [notifStatus, setNotifStatus] = useState<ItemStatus>('pending');
   const [alarmStatus, setAlarmStatus] = useState<ItemStatus>('pending');
   const [fullScreenStatus, setFullScreenStatus] = useState<ItemStatus>('pending');
+  const [overlayStatus, setOverlayStatus] = useState<ItemStatus>('pending');
   const [batteryStatus, setBatteryStatus] = useState<ItemStatus>('pending');
   const [isRequesting, setIsRequesting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [showFSIGuide, setShowFSIGuide] = useState(false);
 
   const setOnboardingCompleted = useSetOnboardingCompleted();
   const setPermissionStatus = useSetPermissionStatus();
@@ -109,34 +114,64 @@ export function PermissionSetupScreen({ navigation }: PermissionSetupScreenProps
       }
     }
 
-    // Step 3: Full-screen intent (Android 14+ only, manual guidance)
+    // Step 3: Full-screen intent (Android 14+ only)
     if (needsFullScreenIntent) {
-      // Android does not allow directly opening the special access destination.
-      // Keep this non-blocking and guide users to complete the final steps manually.
-      setFullScreenStatus('denied');
       setPermissionStatus('fullScreenIntentGranted', false);
-      Alert.alert(
-        'Enable Full-Screen Reminders',
-        'Showd uses full-screen reminders for alarms, urgent actions, and call-like alerts.\n\nPlease enable this manually:\n1. Open App notification settings\n2. Open Special app access\n3. Open Full-screen notifications\n4. Turn ON Showd\n5. Return to Showd',
-        [
-          {
-            text: 'Open Notification Settings',
-            onPress: async () => {
-              await requestFullScreenIntentPermission();
-            },
-          },
-          {
-            text: 'Open App Settings',
-            onPress: async () => {
-              await Linking.openSettings();
-            },
-          },
-          { text: "I'll do this later", style: 'cancel' },
-        ],
-      );
+
+      // Try the direct intent first — it takes the user straight to the toggle
+      const opened = await requestFullScreenIntentPermission();
+
+      if (!opened) {
+        // Direct intent failed — show the brand-specific guide modal
+        setFullScreenStatus('denied');
+        setShowFSIGuide(true);
+      } else {
+        // User was sent to settings; when they come back, re-check
+        setFullScreenStatus('denied');
+        const recheckOnResume = () => {
+          const sub = AppState.addEventListener('change', async (state) => {
+            if (state === 'active') {
+              sub.remove();
+              const updated = await checkAllPermissions();
+              const granted = updated.fullScreenIntent;
+              setFullScreenStatus(granted ? 'granted' : 'denied');
+              setPermissionStatus('fullScreenIntentGranted', granted);
+              if (!granted) {
+                // Still not granted — show the brand-specific guide
+                setShowFSIGuide(true);
+              }
+            }
+          });
+        };
+        recheckOnResume();
+      }
     }
 
-    // Step 4: Battery optimization (Android only, NOT blocking)
+    // Step 4: Overlay / "Display over other apps" (Android only)
+    // This allows full-screen reminders to appear even when the device is UNLOCKED
+    if (isAndroid) {
+      const preCheck = await checkAllPermissions();
+      if (!preCheck.overlayPermission) {
+        await requestOverlayPermission();
+        // Re-check when user comes back
+        const recheckOverlay = () => {
+          const sub = AppState.addEventListener('change', async (nextState) => {
+            if (nextState === 'active') {
+              sub.remove();
+              const updated = await checkAllPermissions();
+              setOverlayStatus(updated.overlayPermission ? 'granted' : 'denied');
+              setPermissionStatus('overlayGranted', updated.overlayPermission);
+            }
+          });
+        };
+        recheckOverlay();
+      } else {
+        setOverlayStatus('granted');
+        setPermissionStatus('overlayGranted', true);
+      }
+    }
+
+    // Step 5: Battery optimization (Android only, NOT blocking)
     if (isAndroid) {
       await requestBatteryOptimizationDisable();
       const status = await checkAllPermissions();
@@ -213,6 +248,14 @@ export function PermissionSetupScreen({ navigation }: PermissionSetupScreenProps
           )}
           {isAndroid && (
             <PermissionItem
+              icon="layers"
+              title="Display over other apps"
+              description="Show reminders even while using other apps"
+              status={overlayStatus}
+            />
+          )}
+          {isAndroid && (
+            <PermissionItem
               icon="battery-charging"
               title="Stay active in the background"
               description="So your phone's battery saver doesn't kill reminders"
@@ -252,6 +295,11 @@ export function PermissionSetupScreen({ navigation }: PermissionSetupScreenProps
           />
         )}
       </View>
+      {/* Full-Screen Intent Guide modal */}
+      <FullScreenIntentGuide
+        visible={showFSIGuide}
+        onDismiss={() => setShowFSIGuide(false)}
+      />
     </SafeAreaView>
   );
 }

@@ -89,17 +89,6 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
         ))}
       </View>
 
-      {/* All Features Free Banner */}
-      <View style={styles.freeBanner}>
-        <Feather name="check-circle" size={20} color={Colors.primary} />
-        <View style={styles.freeTextContainer}>
-          <Text style={styles.freeTitle}>100% Free. No limits.</Text>
-          <Text style={styles.freeSubtitle}>
-            All features unlocked. No ads, no subscriptions.
-          </Text>
-        </View>
-      </View>
-
       {/* Bottom Button */}
       <View style={styles.bottomSection}>
         <Button
@@ -169,30 +158,6 @@ const styles = StyleSheet.create({
   dotActive: {
     backgroundColor: Colors.primary,
     width: 24,
-  },
-  freeBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryLight,
-    marginHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.base,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    gap: Spacing.md,
-  },
-  freeTextContainer: {
-    flex: 1,
-  },
-  freeTitle: {
-    ...Typography.heading3,
-    color: Colors.textPrimary,
-  },
-  freeSubtitle: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginTop: 2,
   },
   bottomSection: {
     paddingHorizontal: Spacing.xl,

@@ -32,12 +32,17 @@ const useReminderStoreBase = create<ReminderState>((set, get) => ({
     console.log('[reminderStore] triggerReminder called with taskId:', taskId);
     const { activeTaskId, pendingReminders } = get();
     console.log('[reminderStore] Current state - activeTaskId:', activeTaskId, 'pendingReminders:', pendingReminders);
+
+    // Deduplicate the same task. Notification events can arrive more than once.
+    if (activeTaskId === taskId || pendingReminders.includes(taskId)) {
+      console.log('[reminderStore] Duplicate reminder ignored for task:', taskId);
+      return;
+    }
+
     if (activeTaskId) {
-      // Already showing a reminder — queue this one
-      if (!pendingReminders.includes(taskId)) {
-        console.log('[reminderStore] Queueing reminder for task:', taskId);
-        set({ pendingReminders: [...pendingReminders, taskId] });
-      }
+      // Already showing a different reminder, queue this one.
+      console.log('[reminderStore] Queueing reminder for task:', taskId);
+      set({ pendingReminders: [...pendingReminders, taskId] });
     } else {
       console.log('[reminderStore] Setting activeTaskId to:', taskId);
       set({ activeTaskId: taskId });

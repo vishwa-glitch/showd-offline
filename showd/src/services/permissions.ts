@@ -1,7 +1,8 @@
 import { Platform, Linking } from 'react-native';
 import notifee, { AuthorizationStatus } from '@notifee/react-native';
+import * as Application from 'expo-application';
 import { isProblematicOEM, getOEMBrand, getOEMBatterySettingsIntent } from '../constants/oemConfig';
-import { canUseFullScreenIntent } from './fullScreenIntentAccess';
+import { canUseFullScreenIntent, canDrawOverlays, openOverlayPermissionSettings } from './fullScreenIntentAccess';
 
 export interface PermissionStatus {
   notifications: boolean;
@@ -49,8 +50,11 @@ export async function checkAllPermissions(): Promise<PermissionStatus> {
     }
   }
 
-  // Overlay (only matters on problematic OEMs)
-  const overlayPermission = !isProblematicOEM();
+  // Overlay ("Display over other apps" — SYSTEM_ALERT_WINDOW)
+  let overlayPermission = true;
+  if (Platform.OS === 'android') {
+    overlayPermission = await canDrawOverlays();
+  }
 
   // Full-screen notifications access (Android 14+)
   const fullScreenIntent = await canUseFullScreenIntent();
@@ -101,25 +105,65 @@ export async function requestBatteryOptimizationDisable(): Promise<void> {
 }
 
 /**
- * Open overlay permission settings (for problematic OEMs).
+ * Open the "Display over other apps" (SYSTEM_ALERT_WINDOW) permission page
+ * directly for this app. Falls back to general app settings.
  */
-export async function requestOverlayPermission(): Promise<void> {
-  await Linking.openSettings();
+export async function requestOverlayPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+
+  // Try native module (direct ACTION_MANAGE_OVERLAY_PERMISSION intent)
+  const opened = await openOverlayPermissionSettings();
+  if (opened) return true;
+
+  // Fallback: general app settings
+  try {
+    await Linking.openSettings();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Open app-level notification settings for full-screen intent setup guidance (Android 14+).
- * Android does not allow directly opening:
- * Settings > Apps > Special app access > Full-screen notifications
- * so we use best-effort app settings destinations.
+ * Open the full-screen intent permission page for this app (Android 14+).
+ *
+ * Uses ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT to go directly to the
+ * toggle. Falls back to notification settings → app settings if the
+ * intent is unavailable on the device.
+ *
+ * Returns `true` if a settings page was successfully opened.
  */
-export async function requestFullScreenIntentPermission(): Promise<void> {
-  if (Platform.OS !== 'android' || Number(Platform.Version) < 34) return;
+export async function requestFullScreenIntentPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android' || Number(Platform.Version) < 34) return true;
+  const packageName = Application.applicationId ?? 'com.showd.app';
 
+  // Strategy 1: Direct intent (most user-friendly)
+  try {
+    const intentUrl =
+      `intent:#Intent;action=android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT;data=package:${packageName};end`;
+    const canOpen = await Linking.canOpenURL(intentUrl);
+    if (canOpen) {
+      await Linking.openURL(intentUrl);
+      return true;
+    }
+  } catch {
+    // Intent not available — try next strategy
+  }
+
+  // Strategy 2: Notifee notification settings (opens app-level notification page)
   try {
     await notifee.openNotificationSettings();
+    return true;
   } catch {
+    // Unavailable
+  }
+
+  // Strategy 3: General app settings
+  try {
     await Linking.openSettings();
+    return true;
+  } catch {
+    return false;
   }
 }
 

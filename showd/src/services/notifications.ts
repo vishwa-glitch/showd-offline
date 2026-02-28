@@ -14,6 +14,7 @@ import type { Task } from '../types/task';
 import { getChannelIdForSound, REMINDER_CHANNEL_ID } from '../utils/sounds';
 import { getSelectedSoundId } from '../store/soundStore';
 import { parseReminderTime } from '../utils/reminderTime';
+import { showSystemReminderOverlay, hideSystemReminderOverlay } from './fullScreenIntentAccess';
 
 const SERVICE_CHANNEL_ID = 'showd-service';
 // Must be an even-length array of positive values for Notifee.
@@ -120,6 +121,14 @@ export function registerBackgroundHandler(
       const taskId = detail.notification?.data?.taskId as string | undefined;
       if (taskId) {
         await persistPendingReminder(taskId);
+
+        // Phase 2: render a true system overlay window on unlocked devices.
+        // If unsupported/blocked, this fails gracefully and Notifee heads-up/FSI still applies.
+        if (type === EventType.DELIVERED) {
+          const title = detail.notification?.title || 'Reminder';
+          const body = detail.notification?.body || 'Time to show up for yourself';
+          await showSystemReminderOverlay(taskId, title, body);
+        }
         onReminderTriggered?.(taskId);
       }
     }
@@ -230,11 +239,15 @@ function buildNotification(task: Task, notificationId: string = task.id): Notifi
   // Use the globally selected sound (offline, from AsyncStorage-persisted store)
   const soundId = getSelectedSoundId();
   const channelId = getChannelIdForSound(soundId);
+  const witnessName = task.witnessName?.trim() || '';
+  const motivationLine = witnessName
+    ? `${witnessName} is counting on you`
+    : 'Time to show up for yourself';
 
   return {
     id: notificationId,
     title: task.name,
-    body: 'Time to show up for yourself',
+    body: motivationLine,
     data: { taskId: task.id },
     android: {
       channelId,
@@ -335,6 +348,7 @@ export async function cancelTaskReminder(taskId: string): Promise<void> {
   await notifee.cancelNotification(snoozeNotificationId);
   await notifee.cancelTriggerNotification(snoozeNotificationId);
   await dismissDisplayedRemindersForTask(taskId);
+  await hideSystemReminderOverlay().catch(() => {});
 }
 
 /**
@@ -345,6 +359,7 @@ export async function cancelActiveReminder(taskId: string): Promise<void> {
   const snoozeNotificationId = getSnoozeNotificationId(taskId);
 
   await dismissDisplayedRemindersForTask(taskId);
+  await hideSystemReminderOverlay().catch(() => {});
 
   try {
     await notifee.cancelNotification(taskId);
@@ -369,6 +384,7 @@ export async function cancelActiveReminder(taskId: string): Promise<void> {
 export async function cancelAllReminders(): Promise<void> {
   await notifee.cancelAllNotifications();
   await notifee.cancelTriggerNotifications();
+  await hideSystemReminderOverlay().catch(() => {});
 }
 
 /**

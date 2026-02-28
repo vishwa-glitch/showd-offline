@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
@@ -8,6 +8,7 @@ import {
   useNotificationsGranted,
   useExactAlarmGranted,
   useBatteryOptimizationDisabled,
+  useOverlayGranted,
   useFullScreenIntentGranted,
   useShouldShowBanner,
   useDismissBanner,
@@ -17,17 +18,21 @@ import {
   requestNotificationPermission,
   requestExactAlarmPermission,
   requestBatteryOptimizationDisable,
+  requestOverlayPermission,
   requestFullScreenIntentPermission,
 } from '../../services/permissions';
+import { FullScreenIntentGuide } from './FullScreenIntentGuide';
 
 export function PermissionBanner() {
   const notificationsGranted = useNotificationsGranted();
   const exactAlarmGranted = useExactAlarmGranted();
   const batteryDisabled = useBatteryOptimizationDisabled();
+  const overlayGranted = useOverlayGranted();
   const fullScreenIntentGranted = useFullScreenIntentGranted();
   const shouldShowBanner = useShouldShowBanner();
   const dismissBanner = useDismissBanner();
   const refreshPermissions = useRefreshAllPermissions();
+  const [showFSIGuide, setShowFSIGuide] = useState(false);
 
   useEffect(() => {
     refreshPermissions();
@@ -58,10 +63,19 @@ export function PermissionBanner() {
       await requestBatteryOptimizationDisable();
       refreshPermissions();
     };
+  } else if (!overlayGranted) {
+    message = 'Display over other apps is off. Reminders may not interrupt while unlocked.';
+    onFix = async () => {
+      await requestOverlayPermission();
+      refreshPermissions();
+    };
   } else if (!fullScreenIntentGranted) {
     message = 'Full-screen reminders are off. Urgent reminders may be swipeable.';
     onFix = async () => {
-      await requestFullScreenIntentPermission();
+      const opened = await requestFullScreenIntentPermission();
+      if (!opened) {
+        setShowFSIGuide(true);
+      }
       refreshPermissions();
     };
   }
@@ -71,6 +85,7 @@ export function PermissionBanner() {
     (!notificationsGranted ? 1 : 0) +
     (!exactAlarmGranted ? 1 : 0) +
     (!batteryDisabled ? 1 : 0) +
+    (!overlayGranted ? 1 : 0) +
     (!fullScreenIntentGranted ? 1 : 0);
 
   if (missingCount > 1) {
@@ -94,6 +109,13 @@ export function PermissionBanner() {
       >
         <Feather name="x" size={16} color={Colors.textTertiary} />
       </TouchableOpacity>
+      <FullScreenIntentGuide
+        visible={showFSIGuide}
+        onDismiss={() => {
+          setShowFSIGuide(false);
+          refreshPermissions();
+        }}
+      />
     </View>
   );
 }
