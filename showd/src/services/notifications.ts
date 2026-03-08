@@ -127,7 +127,13 @@ export function registerBackgroundHandler(
         if (type === EventType.DELIVERED) {
           const title = detail.notification?.title || 'Reminder';
           const body = detail.notification?.body || 'Time to show up for yourself';
-          await showSystemReminderOverlay(taskId, title, body);
+          const rawDescription = detail.notification?.data?.description;
+          const description = typeof rawDescription === 'string' ? rawDescription.trim() : '';
+          const rawSoundId = detail.notification?.data?.soundId;
+          const soundId = typeof rawSoundId === 'string' ? rawSoundId.trim() : '';
+          const rawWitnessPhotoUri = detail.notification?.data?.witnessPhotoUri;
+          const witnessPhotoUri = typeof rawWitnessPhotoUri === 'string' ? rawWitnessPhotoUri.trim() : '';
+          await showSystemReminderOverlay(taskId, title, body, description, soundId, witnessPhotoUri);
         }
         onReminderTriggered?.(taskId);
       }
@@ -240,6 +246,7 @@ function buildNotification(task: Task, notificationId: string = task.id): Notifi
   const soundId = getSelectedSoundId();
   const channelId = getChannelIdForSound(soundId);
   const witnessName = task.witnessName?.trim() || '';
+  const description = task.description?.trim() || '';
   const motivationLine = witnessName
     ? `${witnessName} is counting on you`
     : 'Time to show up for yourself';
@@ -248,7 +255,7 @@ function buildNotification(task: Task, notificationId: string = task.id): Notifi
     id: notificationId,
     title: task.name,
     body: motivationLine,
-    data: { taskId: task.id },
+    data: { taskId: task.id, description, soundId, witnessPhotoUri: task.witnessPhotoUri || '' },
     android: {
       channelId,
       importance: AndroidImportance.HIGH,

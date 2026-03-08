@@ -137,7 +137,7 @@ const CHOICES = [
     icon: 'check-circle' as const,
     color: Colors.success,
     label: 'Done',
-    desc: 'You did the thing. Streak grows. Your witness is proud.',
+    desc: 'You did the thing. Streak grows.',
   },
   {
     icon: 'clock' as const,
@@ -149,7 +149,7 @@ const CHOICES = [
     icon: 'cloud' as const,
     color: Colors.struggling,
     label: 'Struggling',
-    desc: 'Honest about today. Your witness gets a gentle heads-up so they can check in.',
+    desc: "Honest about today. You know what they'd say. That's the point.",
   },
 ];
 

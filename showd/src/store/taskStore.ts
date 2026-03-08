@@ -69,6 +69,7 @@ const useTaskStoreBase = create<TaskState>()(
           category: formData.category!,
           reminderTime: formData.reminderTime,
           witnessName: formData.witnessName || undefined,
+          witnessPhotoUri: formData.witnessPhotoUri || undefined,
           frequency: formData.frequency,
           frequencyDays: formData.frequencyDays.length > 0 ? formData.frequencyDays : undefined,
           customIntervalDays: formData.frequency === 'custom' ? formData.customIntervalDays : undefined,

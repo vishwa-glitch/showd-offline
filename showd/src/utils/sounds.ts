@@ -14,9 +14,9 @@ export const BUILT_IN_SOUNDS: readonly SoundOption[] = [
 ] as const;
 
 export const DEFAULT_SOUND_ID = 'gentle_pulse';
-// Bump channel id when channel-level sound config changes on Android.
+// Bump channel id when channel-level sound/vibration config changes on Android.
 // Android channels are immutable once created, so versioning forces a clean channel.
-export const REMINDER_CHANNEL_ID = 'showd-reminder-v2';
+export const REMINDER_CHANNEL_ID = 'showd-reminder-v3';
 
 export function getSoundName(soundId: string): string {
   const found = BUILT_IN_SOUNDS.find((s) => s.id === soundId);

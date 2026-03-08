@@ -88,7 +88,7 @@ export function HowShowdWorksScreen({ navigation }: Props) {
           <StepSection
             stepNumber="01"
             heading="Create a task that matters"
-            body="Add the thing you keep putting off — take your medication, exercise, deep work, journaling. Set a time, pick how often (daily, weekly, or custom), and optionally set a duration for tasks that take longer than a moment."
+            body="Add the thing you keep putting off - take your medication, exercise, deep work, journaling. Set a time, pick how often (daily, weekly, or custom), and optionally set a duration for tasks that take longer than a moment. Add a name that matters to you - a coach, a parent, a friend. They don't need the app. Their name just shows up on your screen when it's time. Sometimes that's enough."
             delay={100}
           >
             <MiniTaskCards />

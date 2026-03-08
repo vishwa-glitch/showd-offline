@@ -10,7 +10,7 @@ import {
   useBatteryOptimizationDisabled,
   useOverlayGranted,
   useFullScreenIntentGranted,
-  useShouldShowBanner,
+  usePermissionBannerDismissedAt,
   useDismissBanner,
   useRefreshAllPermissions,
 } from '../../store/permissionStore';
@@ -24,12 +24,13 @@ import {
 import { FullScreenIntentGuide } from './FullScreenIntentGuide';
 
 export function PermissionBanner() {
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
   const notificationsGranted = useNotificationsGranted();
   const exactAlarmGranted = useExactAlarmGranted();
   const batteryDisabled = useBatteryOptimizationDisabled();
   const overlayGranted = useOverlayGranted();
   const fullScreenIntentGranted = useFullScreenIntentGranted();
-  const shouldShowBanner = useShouldShowBanner();
+  const permissionBannerDismissedAt = usePermissionBannerDismissedAt();
   const dismissBanner = useDismissBanner();
   const refreshPermissions = useRefreshAllPermissions();
   const [showFSIGuide, setShowFSIGuide] = useState(false);
@@ -38,7 +39,17 @@ export function PermissionBanner() {
     refreshPermissions();
   }, [refreshPermissions]);
 
-  const showBanner = shouldShowBanner();
+  const hasMissingPermissions =
+    !notificationsGranted ||
+    !exactAlarmGranted ||
+    !batteryDisabled ||
+    !overlayGranted ||
+    !fullScreenIntentGranted;
+
+  const showBanner =
+    hasMissingPermissions &&
+    (!permissionBannerDismissedAt || Date.now() - permissionBannerDismissedAt > sevenDaysMs);
+
   if (!showBanner) return null;
 
   // Determine which permission is most critical to fix
@@ -105,6 +116,7 @@ export function PermissionBanner() {
       </TouchableOpacity>
       <TouchableOpacity
         onPress={dismissBanner}
+        style={styles.closeButton}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Feather name="x" size={16} color={Colors.textTertiary} />
@@ -146,5 +158,8 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semiBold,
     fontSize: 14,
     color: Colors.primary,
+  },
+  closeButton: {
+    padding: 4,
   },
 });

@@ -18,6 +18,7 @@ export interface Task {
   category: TaskCategory;
   reminderTime: string;
   witnessName?: string;
+  witnessPhotoUri?: string;
   frequency: TaskFrequency;
   frequencyDays?: number[];
   customIntervalDays?: number;
@@ -64,6 +65,7 @@ export interface TaskFormData {
   category: TaskCategory | null;
   reminderTime: string;
   witnessName: string;
+  witnessPhotoUri: string;
   frequency: TaskFrequency;
   frequencyDays: number[];
   customIntervalDays: number;
@@ -89,6 +91,7 @@ export const DEFAULT_FORM_DATA: TaskFormData = {
   category: null,
   reminderTime: '08:00',
   witnessName: '',
+  witnessPhotoUri: '',
   frequency: 'daily',
   frequencyDays: [],
   customIntervalDays: 1,

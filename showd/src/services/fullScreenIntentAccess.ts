@@ -5,7 +5,14 @@ type ShowdNativeModule = {
   canDrawOverlays: () => Promise<boolean>;
   openOverlayPermissionSettings: () => Promise<boolean>;
   openAppForReminderIfUnlocked: (taskId: string) => Promise<boolean>;
-  showReminderOverlay: (taskId: string, title: string, body: string) => Promise<boolean>;
+  showReminderOverlay: (
+    taskId: string,
+    title: string,
+    body: string,
+    description?: string,
+    soundId?: string,
+    witnessPhotoUri?: string
+  ) => Promise<boolean>;
   hideReminderOverlay: () => Promise<boolean>;
   consumePendingOverlayAction: () => Promise<{
     action?: string;
@@ -95,15 +102,31 @@ export async function showSystemReminderOverlay(
   taskId: string,
   title: string,
   body: string,
+  description: string = '',
+  soundId: string = '',
+  witnessPhotoUri: string = '',
 ): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
   if (!taskId) return false;
   if (!nativeModule?.showReminderOverlay) return false;
 
   try {
-    return await nativeModule.showReminderOverlay(taskId, title, body);
+    return await nativeModule.showReminderOverlay(taskId, title, body, description, soundId, witnessPhotoUri);
   } catch {
-    return false;
+    // Backward compatibility for users running an older native binary.
+    try {
+      return await nativeModule.showReminderOverlay(taskId, title, body, description, soundId);
+    } catch {
+      try {
+        return await nativeModule.showReminderOverlay(taskId, title, body, description);
+      } catch {
+        try {
+          return await nativeModule.showReminderOverlay(taskId, title, body);
+        } catch {
+          return false;
+        }
+      }
+    }
   }
 }
 

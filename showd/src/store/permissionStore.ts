@@ -103,5 +103,6 @@ export const useSetOnboardingCompleted = () => usePermissionStoreBase((s) => s.s
 export const useSetOEMSetupCompleted = () => usePermissionStoreBase((s) => s.setOEMSetupCompleted);
 export const useDismissBanner = () => usePermissionStoreBase((s) => s.dismissBanner);
 export const useShouldShowBanner = () => usePermissionStoreBase((s) => s.shouldShowBanner);
+export const usePermissionBannerDismissedAt = () => usePermissionStoreBase((s) => s.permissionBannerDismissedAt);
 export const useHasMissingPermissions = () => usePermissionStoreBase((s) => s.hasMissingPermissions);
 export const useRefreshAllPermissions = () => usePermissionStoreBase((s) => s.refreshAllPermissions);

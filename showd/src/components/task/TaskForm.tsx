@@ -9,9 +9,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  Image,
+  Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
@@ -107,6 +110,31 @@ export function TaskForm({
     updateForm({ frequencyDays: days });
   };
 
+  const handlePickWitnessPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        'Permission needed',
+        'Allow photo library access to choose a witness photo.',
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const pickedUri = result.assets?.[0]?.uri;
+      if (pickedUri) {
+        updateForm({ witnessPhotoUri: pickedUri });
+      }
+    }
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -188,6 +216,39 @@ export function TaskForm({
           value={form.witnessName}
           onChangeText={(witnessName) => updateForm({ witnessName })}
         />
+        <View style={styles.witnessPhotoRow}>
+          <View style={styles.witnessPhotoPreview}>
+            {form.witnessPhotoUri ? (
+              <Image source={{ uri: form.witnessPhotoUri }} style={styles.witnessPhotoImage} />
+            ) : (
+              <Feather name="user" size={20} color={Colors.textTertiary} />
+            )}
+          </View>
+
+          <View style={styles.witnessPhotoActions}>
+            <TouchableOpacity
+              style={styles.witnessPhotoButton}
+              onPress={handlePickWitnessPhoto}
+              activeOpacity={0.8}
+            >
+              <Feather name="image" size={16} color={Colors.textPrimary} />
+              <Text style={styles.witnessPhotoButtonText}>
+                {form.witnessPhotoUri ? 'Change photo' : 'Add photo'}
+              </Text>
+            </TouchableOpacity>
+
+            {form.witnessPhotoUri ? (
+              <TouchableOpacity
+                onPress={() => updateForm({ witnessPhotoUri: '' })}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.removePhotoText}>Remove</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.witnessPhotoHint}>Shown on reminder screen</Text>
+            )}
+          </View>
+        </View>
       </View>
 
       {/* Frequency */}
@@ -434,5 +495,55 @@ const styles = StyleSheet.create({
   customIntervalLabel: {
     ...Typography.body,
     color: Colors.textPrimary,
+  },
+  witnessPhotoRow: {
+    marginTop: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  witnessPhotoPreview: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  witnessPhotoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  witnessPhotoActions: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  witnessPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  witnessPhotoButtonText: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold,
+  },
+  witnessPhotoHint: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+  },
+  removePhotoText: {
+    ...Typography.caption,
+    color: Colors.missed,
   },
 });

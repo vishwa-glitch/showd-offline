@@ -9,7 +9,14 @@ const path = require('path');
  * - Adds a small native module to detect Android 14+ full-screen intent access
  */
 
-const REMINDER_SOUND_FILE = 'reminder_sound.mp3';
+const REMINDER_SOUND_FILES = [
+  'reminder_sound.mp3',
+  'gentle_pulse.mp3',
+  'morning_call.mp3',
+  'steady_knock.mp3',
+  'urgent_bell.mp3',
+  'calm_wave.mp3',
+];
 const FULL_SCREEN_MODULE_NAME = 'ShowdFullScreenIntent';
 const FULL_SCREEN_PACKAGE_NAME = 'ShowdFullScreenIntentPackage';
 
@@ -25,17 +32,110 @@ const writeFileIfChanged = (filePath, content) => {
   fs.writeFileSync(filePath, content);
 };
 
+const withNotifeeDependencyResolution = (config) => {
+  return withDangerousMod(config, ['android', async (modConfig) => {
+    const projectRoot = modConfig.modRequest.projectRoot;
+    const settingsGradlePath = path.join(projectRoot, 'android', 'settings.gradle');
+    const rootBuildGradlePath = path.join(projectRoot, 'android', 'build.gradle');
+    const appBuildGradlePath = path.join(projectRoot, 'android', 'app', 'build.gradle');
+
+    const settingsGradle = readFileIfExists(settingsGradlePath);
+    if (settingsGradle) {
+      let patchedSettings = settingsGradle;
+      const localRepoLine = 'maven { url("$rootDir/../node_modules/@notifee/react-native/android/libs") }';
+      const hostedRepoLine = 'maven { url("https://maven.notifee.app") }';
+      const injectRepoLine = (content, repoLine) => {
+        if (content.includes(repoLine)) return content;
+
+        const withExistingRepos = content.replace(
+          /dependencyResolutionManagement\s*\{[\s\S]*?repositories\s*\{/,
+          (match) => `${match}\n        ${repoLine}`,
+        );
+        if (withExistingRepos !== content) return withExistingRepos;
+
+        return content.replace(
+          /dependencyResolutionManagement\s*\{/,
+          (match) => `${match}\n    repositories {\n        ${repoLine}\n    }`,
+        );
+      };
+
+      patchedSettings = injectRepoLine(patchedSettings, localRepoLine);
+      patchedSettings = injectRepoLine(patchedSettings, hostedRepoLine);
+
+      if (
+        patchedSettings !== settingsGradle &&
+        patchedSettings.includes('dependencyResolutionManagement') &&
+        patchedSettings.includes('repositories')
+      ) {
+        writeFileIfChanged(settingsGradlePath, patchedSettings);
+      }
+    }
+
+    const rootBuildGradle = readFileIfExists(rootBuildGradlePath);
+    if (rootBuildGradle) {
+      let patchedRootBuildGradle = rootBuildGradle;
+      const localRepoLine = 'maven { url("$rootDir/../node_modules/@notifee/react-native/android/libs") }';
+      const hostedRepoLine = 'maven { url("https://maven.notifee.app") }';
+
+      const injectAllProjectsRepo = (content, repoLine) => {
+        if (content.includes(repoLine)) return content;
+
+        const withAllProjectsRepos = content.replace(
+          /allprojects\s*\{[\s\S]*?repositories\s*\{/,
+          (match) => `${match}\n    ${repoLine}`,
+        );
+        if (withAllProjectsRepos !== content) return withAllProjectsRepos;
+
+        return `${content}
+
+allprojects {
+  repositories {
+    ${repoLine}
+  }
+}
+`;
+      };
+
+      patchedRootBuildGradle = injectAllProjectsRepo(patchedRootBuildGradle, localRepoLine);
+      patchedRootBuildGradle = injectAllProjectsRepo(patchedRootBuildGradle, hostedRepoLine);
+
+      if (patchedRootBuildGradle !== rootBuildGradle) {
+        writeFileIfChanged(rootBuildGradlePath, patchedRootBuildGradle);
+      }
+    }
+
+    const appBuildGradle = readFileIfExists(appBuildGradlePath);
+    if (appBuildGradle && !appBuildGradle.includes('details.requested.group == "app.notifee"')) {
+      const notifeePinSnippet = `
+configurations.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == "app.notifee" && details.requested.name == "core") {
+            details.useVersion("202108261754")
+            details.because("Pin Notifee core to avoid dynamic version metadata failures")
+        }
+    }
+}
+`;
+      writeFileIfChanged(appBuildGradlePath, `${appBuildGradle}\n${notifeePinSnippet}`);
+    }
+
+    return modConfig;
+  }]);
+};
+
 const withReminderSound = (config) => {
   return withDangerousMod(config, ['android', async (modConfig) => {
     const projectRoot = modConfig.modRequest.projectRoot;
-    const source = path.join(projectRoot, 'src', 'assets', 'sounds', REMINDER_SOUND_FILE);
     const destDir = path.join(projectRoot, 'android', 'app', 'src', 'main', 'res', 'raw');
-    const dest = path.join(destDir, REMINDER_SOUND_FILE);
 
     try {
-      if (fs.existsSync(source)) {
-        fs.mkdirSync(destDir, { recursive: true });
-        fs.copyFileSync(source, dest);
+      fs.mkdirSync(destDir, { recursive: true });
+      for (const fileName of REMINDER_SOUND_FILES) {
+        const source = path.join(projectRoot, 'src', 'assets', 'sounds', fileName);
+        const dest = path.join(destDir, fileName);
+        if (fs.existsSync(source)) {
+          fs.copyFileSync(source, dest);
+        }
       }
     } catch {
       // Best-effort copy; build will still succeed with default sound if missing.
@@ -124,14 +224,18 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -150,6 +254,8 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
 
   private View overlayView = null;
   private WindowManager windowManager = null;
+  private MediaPlayer overlaySoundPlayer = null;
+  private Vibrator overlayVibrator = null;
 
   ${FULL_SCREEN_MODULE_NAME}(ReactApplicationContext reactContext) {
     super(reactContext);
@@ -242,6 +348,102 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
       .apply();
   }
 
+  private int resolveReminderSoundResId(String soundId) {
+    String resourceName = "reminder_sound";
+    if (soundId != null) {
+      String trimmed = soundId.trim();
+      if (trimmed.length() > 0) {
+        resourceName = trimmed;
+      }
+    }
+    return getReactApplicationContext()
+      .getResources()
+      .getIdentifier(resourceName, "raw", getReactApplicationContext().getPackageName());
+  }
+
+  private void stopOverlaySoundInternal() {
+    if (overlaySoundPlayer == null) return;
+    try {
+      if (overlaySoundPlayer.isPlaying()) {
+        overlaySoundPlayer.stop();
+      }
+    } catch (Throwable ignored) {
+      // best effort
+    }
+    try {
+      overlaySoundPlayer.release();
+    } catch (Throwable ignored) {
+      // best effort
+    } finally {
+      overlaySoundPlayer = null;
+    }
+  }
+
+  private void startOverlaySoundInternal(String soundId) {
+    stopOverlaySoundInternal();
+
+    Context context = getReactApplicationContext();
+    int soundResId = resolveReminderSoundResId(soundId);
+    if (soundResId == 0) {
+      soundResId = resolveReminderSoundResId("reminder_sound");
+    }
+    if (soundResId == 0) return;
+
+    try {
+      MediaPlayer player = MediaPlayer.create(context, soundResId);
+      if (player == null) return;
+
+      player.setLooping(true);
+      player.setVolume(1.0f, 1.0f);
+      player.setOnErrorListener((mp, what, extra) -> {
+        stopOverlaySoundInternal();
+        return true;
+      });
+      player.start();
+      overlaySoundPlayer = player;
+    } catch (Throwable ignored) {
+      stopOverlaySoundInternal();
+    }
+  }
+
+  private void stopOverlayVibrationInternal() {
+    try {
+      if (overlayVibrator != null) {
+        overlayVibrator.cancel();
+      }
+    } catch (Throwable ignored) {
+      // best effort
+    } finally {
+      overlayVibrator = null;
+    }
+  }
+
+  private void startOverlayVibrationInternal() {
+    stopOverlayVibrationInternal();
+
+    Context context = getReactApplicationContext();
+    Vibrator vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+    if (vibrator == null) return;
+
+    try {
+      if (!vibrator.hasVibrator()) return;
+    } catch (Throwable ignored) {
+      // Some OEM ROMs can throw here; continue best-effort.
+    }
+
+    long[] pattern = new long[] {0, 220, 180, 260, 180, 320};
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1));
+      } else {
+        vibrator.vibrate(pattern, -1);
+      }
+      overlayVibrator = vibrator;
+    } catch (Throwable ignored) {
+      overlayVibrator = null;
+    }
+  }
+
   private void removeOverlayInternal() {
     try {
       if (windowManager != null && overlayView != null) {
@@ -250,6 +452,8 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
     } catch (Throwable ignored) {
       // best effort
     } finally {
+      stopOverlaySoundInternal();
+      stopOverlayVibrationInternal();
       overlayView = null;
     }
   }
@@ -349,7 +553,15 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void showReminderOverlay(String taskId, String title, String body, Promise promise) {
+  public void showReminderOverlay(
+    String taskId,
+    String title,
+    String body,
+    String description,
+    String soundId,
+    String witnessPhotoUri,
+    Promise promise
+  ) {
     UiThreadUtil.runOnUiThread(() -> {
       try {
         Context context = getReactApplicationContext();
@@ -371,6 +583,8 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
         }
 
         removeOverlayInternal();
+        startOverlaySoundInternal(soundId);
+        startOverlayVibrationInternal();
 
         FrameLayout root = new FrameLayout(context);
         root.setClickable(true);
@@ -401,17 +615,53 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
         categoryIcon.setLayoutParams(categoryParams);
 
         String initials = extractWitnessInitials(body);
+        String cleanDescription = description != null ? description.trim() : "";
+        String cleanWitnessPhotoUri = witnessPhotoUri != null ? witnessPhotoUri.trim() : "";
 
-        TextView pulseCircle = new TextView(context);
-        pulseCircle.setText(initials.length() > 0 ? initials : "U");
-        pulseCircle.setTextColor(Color.parseColor("#E6FFFFFF"));
-        pulseCircle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
-        pulseCircle.setTypeface(pulseCircle.getTypeface(), Typeface.BOLD);
-        pulseCircle.setGravity(Gravity.CENTER);
+        FrameLayout pulseCircle = new FrameLayout(context);
         pulseCircle.setBackground(circle("#4DFF4D6A", "#99FF4D6A", 2));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+          pulseCircle.setClipToOutline(true);
+        }
         LinearLayout.LayoutParams pulseParams = new LinearLayout.LayoutParams(dp(96), dp(96));
         pulseParams.bottomMargin = dp(32);
         pulseCircle.setLayoutParams(pulseParams);
+
+        boolean hasWitnessPhoto = cleanWitnessPhotoUri.length() > 0;
+        if (hasWitnessPhoto) {
+          try {
+            ImageView witnessPhoto = new ImageView(context);
+            witnessPhoto.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            witnessPhoto.setImageURI(Uri.parse(cleanWitnessPhotoUri));
+            if (witnessPhoto.getDrawable() != null) {
+              FrameLayout.LayoutParams witnessPhotoParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+              );
+              witnessPhoto.setLayoutParams(witnessPhotoParams);
+              pulseCircle.addView(witnessPhoto);
+            } else {
+              hasWitnessPhoto = false;
+            }
+          } catch (Throwable ignored) {
+            hasWitnessPhoto = false;
+          }
+        }
+
+        if (!hasWitnessPhoto) {
+          TextView initialsView = new TextView(context);
+          initialsView.setText(initials.length() > 0 ? initials : "U");
+          initialsView.setTextColor(Color.parseColor("#E6FFFFFF"));
+          initialsView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+          initialsView.setTypeface(initialsView.getTypeface(), Typeface.BOLD);
+          initialsView.setGravity(Gravity.CENTER);
+          FrameLayout.LayoutParams initialsParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+          );
+          initialsView.setLayoutParams(initialsParams);
+          pulseCircle.addView(initialsView);
+        }
 
         TextView titleView = new TextView(context);
         titleView.setText(title != null && title.length() > 0 ? title : "Reminder");
@@ -432,12 +682,31 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
         bodyView.setTextColor(Color.parseColor("#CCFFFFFF"));
         bodyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         bodyView.setGravity(Gravity.CENTER);
+        bodyView.setMaxLines(3);
+        bodyView.setLineSpacing(0f, 1.12f);
         LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
           LinearLayout.LayoutParams.MATCH_PARENT,
           LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        bodyParams.bottomMargin = dp(28);
+        bodyParams.bottomMargin = cleanDescription.length() > 0 ? dp(10) : dp(28);
         bodyView.setLayoutParams(bodyParams);
+
+        TextView descriptionView = null;
+        if (cleanDescription.length() > 0) {
+          descriptionView = new TextView(context);
+          descriptionView.setText(cleanDescription);
+          descriptionView.setTextColor(Color.parseColor("#B8FFFFFF"));
+          descriptionView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+          descriptionView.setGravity(Gravity.CENTER);
+          descriptionView.setMaxLines(4);
+          descriptionView.setLineSpacing(0f, 1.12f);
+          LinearLayout.LayoutParams descriptionParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+          );
+          descriptionParams.bottomMargin = dp(22);
+          descriptionView.setLayoutParams(descriptionParams);
+        }
 
         LinearLayout buttons = new LinearLayout(context);
         buttons.setOrientation(LinearLayout.VERTICAL);
@@ -521,6 +790,9 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
         content.addView(pulseCircle);
         content.addView(titleView);
         content.addView(bodyView);
+        if (descriptionView != null) {
+          content.addView(descriptionView);
+        }
         content.addView(buttons);
 
         root.addView(content);
@@ -676,5 +948,6 @@ module.exports = (config) => {
   config = withNotifee(config);
   config = withReminderSound(config);
   config = withFullScreenIntentDetector(config);
+  config = withNotifeeDependencyResolution(config);
   return config;
 };

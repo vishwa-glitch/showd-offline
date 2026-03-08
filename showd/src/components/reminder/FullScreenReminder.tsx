@@ -7,6 +7,7 @@ import {
   BackHandler,
   Platform,
   Dimensions,
+  Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -101,10 +102,28 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
     };
   }, []);
 
+  // Extra Android haptic pulses while reminder is visible in-app.
+  // This complements notification-channel vibration for foreground reminders.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const pulse = () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    };
+
+    pulse();
+    const intervalId = setInterval(pulse, 3000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [task.id]);
+
   const category = TASK_CATEGORIES.find((c) => c.key === task.category);
   const categoryIcon = (category?.icon || 'circle') as keyof typeof Feather.glyphMap;
 
   const witnessName = task.witnessName?.trim() || '';
+  const taskDescription = task.description?.trim() || '';
   const motivationLine = witnessName
     ? `${witnessName} is counting on you`
     : 'Time to show up for yourself';
@@ -188,7 +207,9 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
 
       {/* Animated circle */}
       <Animated.View style={[styles.motivationCircle, pulseStyle]}>
-        {witnessInitials ? (
+        {task.witnessPhotoUri ? (
+          <Image source={{ uri: task.witnessPhotoUri }} style={styles.witnessPhoto} />
+        ) : witnessInitials ? (
           <Text style={styles.witnessInitials}>{witnessInitials}</Text>
         ) : (
           <Feather name="user" size={40} color="rgba(255,255,255,0.7)" />
@@ -201,7 +222,16 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
       </Text>
 
       {/* Motivation line */}
-      <Text style={styles.motivationLine}>{motivationLine}</Text>
+      <Text style={[styles.motivationLine, taskDescription ? styles.motivationLineCompact : null]}>
+        {motivationLine}
+      </Text>
+
+      {/* Task description */}
+      {taskDescription ? (
+        <Text style={styles.taskDescription} numberOfLines={4}>
+          {taskDescription}
+        </Text>
+      ) : null}
 
       {/* Snooze count indicator */}
       {snoozeCount > 0 && (
@@ -307,6 +337,10 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     letterSpacing: 1,
   },
+  witnessPhoto: {
+    width: '100%',
+    height: '100%',
+  },
   taskName: {
     ...Typography.reminderTask,
     color: '#FFFFFF',
@@ -318,6 +352,16 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
     marginBottom: Spacing.xl,
+  },
+  motivationLineCompact: {
+    marginBottom: Spacing.md,
+  },
+  taskDescription: {
+    ...Typography.body,
+    color: 'rgba(255, 255, 255, 0.82)',
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
   },
   snoozeIndicator: {
     ...Typography.caption,
