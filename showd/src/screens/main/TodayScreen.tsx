@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -6,7 +6,20 @@ import { Colors } from '../../utils/colors';
 import { Typography } from '../../utils/typography';
 import { Spacing, Shadows } from '../../utils/spacing';
 import { useUserName } from '../../store/onboardingStore';
-import { useEvents, useTodayTasks, useCompletedTodayCount, useCompleteTask } from '../../store/taskStore';
+import {
+  useEvents,
+  useTodayTasks,
+  useCompletedTodayCount,
+  useCompleteTask,
+  useUndoTaskCompletion,
+} from '../../store/taskStore';
+import {
+  useShouldShowRatingPrompt,
+  useMarkRatingPromptShown,
+  useMarkAppRated,
+} from '../../store/ratingStore';
+import type { RatingTriggerResult } from '../../store/ratingStore';
+import { RatingPromptSheet } from '../../components/ui/RatingPromptSheet';
 import { TaskCard } from '../../components/task/TaskCard';
 import { TaskEmptyState } from '../../components/task/TaskEmptyState';
 import { QuickStatsRow } from '../../components/task/QuickStatsRow';
@@ -37,9 +50,43 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
   const completedCount = useCompletedTodayCount();
   const events = useEvents();
   const completeTask = useCompleteTask();
+  const undoTaskCompletion = useUndoTaskCompletion();
   const timerActive = useIsTimerActive();
   const activeTimerTaskId = useActiveTimerTaskId();
   const timerRemainingSeconds = useTimerRemainingSeconds();
+
+  // Rating prompt state
+  const shouldShowRatingPrompt = useShouldShowRatingPrompt();
+  const markRatingPromptShown = useMarkRatingPromptShown();
+  const markAppRated = useMarkAppRated();
+  const [ratingTrigger, setRatingTrigger] = useState<RatingTriggerResult | null>(null);
+  const ratingCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Check for rating prompt after inline task completion
+  const checkRatingPrompt = useCallback(() => {
+    // Clear any pending check to prevent double-fire from rapid taps
+    if (ratingCheckTimer.current) {
+      clearTimeout(ratingCheckTimer.current);
+    }
+    // Delay so the completion feedback (checkbox animation) settles first
+    ratingCheckTimer.current = setTimeout(() => {
+      const result = shouldShowRatingPrompt();
+      if (result.shouldShow) {
+        setRatingTrigger(result);
+        markRatingPromptShown();
+      }
+      ratingCheckTimer.current = null;
+    }, 600);
+  }, [shouldShowRatingPrompt, markRatingPromptShown]);
+
+  const handleRate = useCallback(() => {
+    markAppRated();
+    setRatingTrigger(null);
+  }, [markAppRated]);
+
+  const handleDismissRating = useCallback(() => {
+    setRatingTrigger(null);
+  }, []);
 
 
   const isTaskCompletedToday = (taskId: string) => {
@@ -63,7 +110,15 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
         isInProgress={activeTimerTaskId === item.id}
         timerRemainingSeconds={activeTimerTaskId === item.id ? timerRemainingSeconds : undefined}
         onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-        onComplete={() => completeTask(item.id)}
+        onComplete={() => {
+          const isCompleted = isTaskCompletedToday(item.id);
+          if (isCompleted) {
+            undoTaskCompletion(item.id);
+          } else {
+            completeTask(item.id);
+            checkRatingPrompt();
+          }
+        }}
       />
     </TouchableOpacity>
   );
@@ -115,6 +170,14 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
       >
         <Feather name="plus" size={28} color={Colors.surface} />
       </TouchableOpacity>
+      {/* Rating Prompt Sheet */}
+      {ratingTrigger && (
+        <RatingPromptSheet
+          trigger={ratingTrigger}
+          onRate={handleRate}
+          onDismiss={handleDismissRating}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -39,6 +39,7 @@ export function CreateTaskScreen({ navigation }: CreateTaskScreenProps) {
       <TaskForm
         onSubmit={handleSubmit}
         submitLabel="Create Task"
+        showWitnessPhotoOptionalHint
       />
     </SafeAreaView>
   );

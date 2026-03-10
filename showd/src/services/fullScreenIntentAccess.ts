@@ -2,6 +2,7 @@ import { NativeModules, Platform } from 'react-native';
 
 type ShowdNativeModule = {
   canUseFullScreenIntent: () => Promise<boolean>;
+  openFullScreenIntentSettings: () => Promise<boolean>;
   canDrawOverlays: () => Promise<boolean>;
   openOverlayPermissionSettings: () => Promise<boolean>;
   openAppForReminderIfUnlocked: (taskId: string) => Promise<boolean>;
@@ -38,6 +39,22 @@ export async function canUseFullScreenIntent(): Promise<boolean> {
     return Boolean(allowed);
   } catch {
     return true;
+  }
+}
+
+/**
+ * Open full-screen intent settings for this app.
+ * Android 14+: opens ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT.
+ * Older Android: falls back to app notification settings.
+ */
+export async function openFullScreenIntentSettings(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  if (!nativeModule?.openFullScreenIntentSettings) return false;
+
+  try {
+    return Boolean(await nativeModule.openFullScreenIntentSettings());
+  } catch {
+    return false;
   }
 }
 

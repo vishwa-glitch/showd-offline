@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface RatingTriggerResult {
   shouldShow: boolean;
-  trigger: 'streak_3' | 'streak_7' | 'streak_14' | 'task_10' | 'struggle_then_complete' | null;
+  trigger: 'streak_3' | 'streak_7' | 'streak_14' | 'task_milestone' | 'struggle_then_complete' | null;
   streakCount?: number;
   taskCount?: number;
 }
@@ -21,6 +21,7 @@ interface RatingState {
   lastRatingPromptDate: string | null;
   hasRatedApp: boolean;
   ratingPromptCount: number;
+  hasSeenTaskMilestonePrompt: boolean;
 
   recordAppOpen: () => void;
   recordTaskCompletion: () => void;
@@ -31,6 +32,7 @@ interface RatingState {
 }
 
 const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+const MAX_PROMPT_COUNT = 3;
 
 function getToday(): string {
   return new Date().toISOString().split('T')[0];
@@ -54,6 +56,7 @@ const useRatingStoreBase = create<RatingState>()(
       lastRatingPromptDate: null,
       hasRatedApp: false,
       ratingPromptCount: 0,
+      hasSeenTaskMilestonePrompt: false,
 
       recordAppOpen: () => {
         const today = getToday();
@@ -98,13 +101,17 @@ const useRatingStoreBase = create<RatingState>()(
           hasRatedApp,
           appOpenCount,
           lastRatingPromptDate,
+          ratingPromptCount,
           currentStreak,
           totalCompletedTasks,
           hasStruggleThenCompletedToday,
+          hasSeenTaskMilestonePrompt,
         } = get();
 
         if (hasRatedApp) return { shouldShow: false, trigger: null };
         if (appOpenCount <= 2) return { shouldShow: false, trigger: null };
+        // Stop prompting after MAX_PROMPT_COUNT attempts
+        if (ratingPromptCount >= MAX_PROMPT_COUNT) return { shouldShow: false, trigger: null };
 
         if (lastRatingPromptDate) {
           const elapsed = Date.now() - new Date(lastRatingPromptDate).getTime();
@@ -120,11 +127,11 @@ const useRatingStoreBase = create<RatingState>()(
           };
         }
 
-        // Priority 2: 10th completed task
-        if (totalCompletedTasks === 10) {
+        // Priority 2: Task completion milestone (>= 10, shown once)
+        if (totalCompletedTasks >= 10 && !hasSeenTaskMilestonePrompt) {
           return {
             shouldShow: true,
-            trigger: 'task_10',
+            trigger: 'task_milestone',
             taskCount: totalCompletedTasks,
           };
         }
@@ -137,11 +144,16 @@ const useRatingStoreBase = create<RatingState>()(
         return { shouldShow: false, trigger: null };
       },
 
-      markRatingPromptShown: () =>
+      markRatingPromptShown: () => {
+        const { hasSeenTaskMilestonePrompt } = get();
+        const result = get().shouldShowRatingPrompt();
         set((state) => ({
           lastRatingPromptDate: new Date().toISOString(),
           ratingPromptCount: state.ratingPromptCount + 1,
-        })),
+          // Mark task milestone as seen so it doesn't re-trigger
+          hasSeenTaskMilestonePrompt: hasSeenTaskMilestonePrompt || result.trigger === 'task_milestone',
+        }));
+      },
 
       markAppRated: () => set({ hasRatedApp: true }),
     }),
@@ -157,6 +169,7 @@ const useRatingStoreBase = create<RatingState>()(
         lastRatingPromptDate: state.lastRatingPromptDate,
         hasRatedApp: state.hasRatedApp,
         ratingPromptCount: state.ratingPromptCount,
+        hasSeenTaskMilestonePrompt: state.hasSeenTaskMilestonePrompt,
       }),
     },
   ),

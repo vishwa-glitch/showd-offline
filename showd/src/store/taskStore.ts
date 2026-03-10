@@ -17,6 +17,7 @@ interface TaskState {
 
   addEvent: (event: Omit<TaskEvent, 'id' | 'createdAt'>) => void;
   completeTask: (taskId: string) => number;
+  undoTaskCompletion: (taskId: string) => boolean;
   snoozeTask: (taskId: string) => boolean;
   struggleTask: (taskId: string, reason: string, note?: string) => void;
   markTaskMissed: (taskId: string) => void;
@@ -35,6 +36,7 @@ const generateUUID = () =>
   });
 
 const LOCAL_USER_ID = 'local';
+const LEGACY_MOCK_PREFIX = 'mock-feb-2026';
 
 /**
  * Check if a premature "missed" event exists for a task today.
@@ -50,6 +52,14 @@ function filterOutMissedEvent(events: TaskEvent[], taskId: string, today: string
   return events.filter(
     (e) => !(e.taskId === taskId && e.scheduledFor.startsWith(today) && e.status === 'missed'),
   );
+}
+
+function stripLegacyMockData(tasks: Task[], events: TaskEvent[]): { tasks: Task[]; events: TaskEvent[] } {
+  const filteredTasks = tasks.filter((t) => !t.id.startsWith(LEGACY_MOCK_PREFIX));
+  const filteredEvents = events.filter(
+    (e) => !e.id.startsWith(LEGACY_MOCK_PREFIX) && !e.taskId.startsWith(LEGACY_MOCK_PREFIX),
+  );
+  return { tasks: filteredTasks, events: filteredEvents };
 }
 
 const useTaskStoreBase = create<TaskState>()(
@@ -172,6 +182,33 @@ const useTaskStoreBase = create<TaskState>()(
         return newStreak;
       },
 
+      undoTaskCompletion: (taskId) => {
+        const now = new Date().toISOString();
+        const today = now.split('T')[0];
+
+        const hasDoneToday = get().events.some(
+          (e) => e.taskId === taskId && e.scheduledFor.startsWith(today) && e.status === 'done',
+        );
+        if (!hasDoneToday) return false;
+
+        set((state) => ({
+          events: state.events.filter(
+            (e) => !(e.taskId === taskId && e.scheduledFor.startsWith(today) && e.status === 'done'),
+          ),
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                ...t,
+                currentStreak: Math.max(0, t.currentStreak - 1),
+                updatedAt: now,
+              }
+              : t,
+          ),
+        }));
+
+        return true;
+      },
+
       snoozeTask: (taskId) => {
         const task = get().tasks.find((t) => t.id === taskId);
         if (!task) return false;
@@ -279,6 +316,19 @@ const useTaskStoreBase = create<TaskState>()(
         tasks: state.tasks,
         events: state.events,
       }),
+      merge: (persistedState, currentState) => {
+        const typed = persistedState as Partial<TaskState> | undefined;
+        const merged = {
+          ...currentState,
+          ...typed,
+        };
+        const cleaned = stripLegacyMockData(merged.tasks ?? [], merged.events ?? []);
+        return {
+          ...merged,
+          tasks: cleaned.tasks,
+          events: cleaned.events,
+        };
+      },
     },
   ),
 );
@@ -297,6 +347,7 @@ export const useDeleteTask = () => useTaskStoreBase((s) => s.deleteTask);
 export const useGetTaskById = () => useTaskStoreBase((s) => s.getTaskById);
 export const useGetTaskEvents = () => useTaskStoreBase((s) => s.getTaskEvents);
 export const useCompleteTask = () => useTaskStoreBase((s) => s.completeTask);
+export const useUndoTaskCompletion = () => useTaskStoreBase((s) => s.undoTaskCompletion);
 export const useSnoozeTask = () => useTaskStoreBase((s) => s.snoozeTask);
 export const useStruggleTask = () => useTaskStoreBase((s) => s.struggleTask);
 export const useMarkTaskMissed = () => useTaskStoreBase((s) => s.markTaskMissed);

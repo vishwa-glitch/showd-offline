@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -10,9 +10,20 @@ import { CalendarGrid } from '../../components/progress/CalendarGrid';
 import { DayDetail } from '../../components/progress/DayDetail';
 import { useTasks, useEvents, useCompletedTodayCount } from '../../store/taskStore';
 import {
+  useShouldShowRatingPrompt,
+  useMarkRatingPromptShown,
+  useMarkAppRated,
+} from '../../store/ratingStore';
+import type { RatingTriggerResult } from '../../store/ratingStore';
+import { RatingPromptSheet } from '../../components/ui/RatingPromptSheet';
+import {
   formatMonthYear,
-  getCompletionRate,
+  getTaskCompletionStats,
+  getTaskCompletionTrend,
   getTimedTaskStats,
+  type CompletionRateWindow,
+  type TaskCompletionStats,
+  type TaskCompletionTrend,
 } from '../../utils/dateUtils';
 import type { Task, TaskEvent } from '../../types/task';
 
@@ -43,9 +54,56 @@ export function ProgressScreen() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedDay, setSelectedDay] = useState<number | null>(now.getDate());
+  const [completionWindow, setCompletionWindow] = useState<CompletionRateWindow>('30_days');
+
+  // Rating prompt state
+  const shouldShowRatingPrompt = useShouldShowRatingPrompt();
+  const markRatingPromptShown = useMarkRatingPromptShown();
+  const markAppRated = useMarkAppRated();
+  const [ratingTrigger, setRatingTrigger] = useState<RatingTriggerResult | null>(null);
+  const ratingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Check for rating prompt after a short delay on mount
+  // Progress screen is a reflective moment — user is reviewing their stats
+  useEffect(() => {
+    ratingDelayRef.current = setTimeout(() => {
+      const result = shouldShowRatingPrompt();
+      if (result.shouldShow) {
+        setRatingTrigger(result);
+        markRatingPromptShown();
+      }
+      ratingDelayRef.current = null;
+    }, 1500);
+
+    return () => {
+      if (ratingDelayRef.current) {
+        clearTimeout(ratingDelayRef.current);
+      }
+    };
+  }, [shouldShowRatingPrompt, markRatingPromptShown]);
+
+  const handleRate = useCallback(() => {
+    markAppRated();
+    setRatingTrigger(null);
+  }, [markAppRated]);
+
+  const handleDismissRating = useCallback(() => {
+    setRatingTrigger(null);
+  }, []);
 
   const maxStreak = tasks.reduce((max, t) => Math.max(max, t.currentStreak), 0);
   const longestStreak = tasks.reduce((max, t) => Math.max(max, t.longestStreak), 0);
+
+  const rateDataByTask = useMemo(() => {
+    const map = new Map<string, { stats: TaskCompletionStats; trend: TaskCompletionTrend }>();
+    for (const task of tasks) {
+      map.set(task.id, {
+        stats: getTaskCompletionStats(task, events, completionWindow),
+        trend: getTaskCompletionTrend(task, events),
+      });
+    }
+    return map;
+  }, [tasks, events, completionWindow]);
 
   const goToPrevMonth = () => {
     if (selectedMonth === 0) {
@@ -70,11 +128,13 @@ export function ProgressScreen() {
   // Sort tasks by completion rate (highest first)
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => {
-      const rateA = getCompletionRate(events, a.id);
-      const rateB = getCompletionRate(events, b.id);
+      const statsA = rateDataByTask.get(a.id)?.stats;
+      const statsB = rateDataByTask.get(b.id)?.stats;
+      const rateA = statsA?.completionRate ?? 0;
+      const rateB = statsB?.completionRate ?? 0;
       return rateB - rateA;
     });
-  }, [tasks, events]);
+  }, [tasks, rateDataByTask]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -163,6 +223,42 @@ export function ProgressScreen() {
         {/* Task Completion Rates */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Task Completion Rates</Text>
+          <View style={styles.windowToggle}>
+            <TouchableOpacity
+              style={[
+                styles.windowToggleButton,
+                completionWindow === '30_days' && styles.windowToggleButtonActive,
+              ]}
+              onPress={() => setCompletionWindow('30_days')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.windowToggleText,
+                  completionWindow === '30_days' && styles.windowToggleTextActive,
+                ]}
+              >
+                30 days
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.windowToggleButton,
+                completionWindow === 'all_time' && styles.windowToggleButtonActive,
+              ]}
+              onPress={() => setCompletionWindow('all_time')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.windowToggleText,
+                  completionWindow === 'all_time' && styles.windowToggleTextActive,
+                ]}
+              >
+                All-time
+              </Text>
+            </TouchableOpacity>
+          </View>
           {sortedTasks.length === 0 ? (
             <Card>
               <Text style={styles.emptyText}>
@@ -170,23 +266,61 @@ export function ProgressScreen() {
               </Text>
             </Card>
           ) : (
-            sortedTasks.map((task) => (
-              <TaskRateCard key={task.id} task={task} events={events} />
-            ))
+            sortedTasks.map((task) => {
+              const rateData = rateDataByTask.get(task.id);
+              if (!rateData) return null;
+              return (
+                <TaskRateCard
+                  key={task.id}
+                  task={task}
+                  events={events}
+                  stats={rateData.stats}
+                  trend={rateData.trend}
+                />
+              );
+            })
           )}
         </View>
       </ScrollView>
+      {/* Rating Prompt Sheet */}
+      {ratingTrigger && (
+        <RatingPromptSheet
+          trigger={ratingTrigger}
+          onRate={handleRate}
+          onDismiss={handleDismissRating}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
-function TaskRateCard({ task, events }: { task: Task; events: readonly TaskEvent[] }) {
-  const rate = getCompletionRate(events, task.id);
+function TaskRateCard({
+  task,
+  events,
+  stats,
+  trend,
+}: {
+  task: Task;
+  events: readonly TaskEvent[];
+  stats: TaskCompletionStats;
+  trend: TaskCompletionTrend;
+}) {
+  const hasEnoughData = stats.total >= 3;
   const categoryIcon = CATEGORY_ICONS[task.category] || 'grid';
   const categoryColor = CATEGORY_COLORS[task.category] || Colors.textTertiary;
 
   const isTimed = (task.durationMinutes ?? 0) > 0;
   const timedStats = isTimed ? getTimedTaskStats(events, task.id) : null;
+  const trendIcon = trend.direction === 'up'
+    ? 'trending-up'
+    : trend.direction === 'down'
+      ? 'trending-down'
+      : 'minus';
+  const trendColor = trend.direction === 'up'
+    ? Colors.success
+    : trend.direction === 'down'
+      ? Colors.missed
+      : Colors.textTertiary;
 
   return (
     <Card style={styles.taskRateCard}>
@@ -197,15 +331,32 @@ function TaskRateCard({ task, events }: { task: Task; events: readonly TaskEvent
         <Text style={styles.taskRateName} numberOfLines={1}>
           {task.name}
         </Text>
-        <Text style={styles.taskRateValue}>{rate}%</Text>
+        {hasEnoughData ? (
+          <Text style={styles.taskRateValue}>
+            {stats.completionRate}% ({stats.done}/{stats.total})
+          </Text>
+        ) : (
+          <Text style={styles.taskRateInsufficient}>Not enough data yet</Text>
+        )}
       </View>
       <View style={styles.progressBar}>
         <View
           style={[
             styles.progressFill,
-            { width: `${Math.min(100, rate)}%` },
+            { width: `${Math.min(100, stats.completionRate)}%` },
           ]}
         />
+      </View>
+      <View style={styles.taskMetaRow}>
+        <Text style={styles.taskMetaText}>
+          Struggled {stats.struggled} {stats.struggled === 1 ? 'time' : 'times'}
+        </Text>
+        <View style={styles.trendRow}>
+          <Feather name={trendIcon} size={12} color={trendColor} />
+          <Text style={[styles.taskMetaText, { color: trendColor }]}>
+            {`${trend.delta > 0 ? '+' : ''}${trend.delta}% vs prev 30d`}
+          </Text>
+        </View>
       </View>
       {isTimed && timedStats && timedStats.completionCount > 0 && (
         <Text style={styles.timedStatsText}>
@@ -290,6 +441,32 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: Spacing.md,
   },
+  windowToggle: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: BorderRadius.full,
+    padding: 2,
+    marginBottom: Spacing.md,
+  },
+  windowToggleButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  windowToggleButtonActive: {
+    backgroundColor: Colors.surface,
+    ...Shadows.sm,
+  },
+  windowToggleText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+  },
+  windowToggleTextActive: {
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.semiBold,
+  },
   monthNav: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -331,6 +508,11 @@ const styles = StyleSheet.create({
     ...Typography.heading3,
     color: Colors.primary,
   },
+  taskRateInsufficient: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+    fontFamily: FontFamily.medium,
+  },
   progressBar: {
     height: 6,
     backgroundColor: Colors.surfaceSecondary,
@@ -341,6 +523,21 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: Colors.primary,
     borderRadius: 3,
+  },
+  taskMetaRow: {
+    marginTop: Spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  taskMetaText: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+  },
+  trendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   timedStatsText: {
     ...Typography.caption,

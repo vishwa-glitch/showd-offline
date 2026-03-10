@@ -164,7 +164,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           <SettingRow
             icon="star"
             label="Rate & Review"
-            onPress={() => navigation.navigate('SendFeedback')}
+            onPress={handleRateApp}
           />
           <View style={styles.divider} />
           <SettingRow
@@ -172,16 +172,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
             label="Version"
             value="1.0.0"
             showChevron={false}
-          />
-        </View>
-
-        {/* Diagnostics */}
-        <Text style={styles.sectionTitle}>Diagnostics</Text>
-        <View style={styles.section}>
-          <SettingRow
-            icon="tool"
-            label="Notification Debug"
-            onPress={() => navigation.navigate('NotificationDebug')}
           />
         </View>
 

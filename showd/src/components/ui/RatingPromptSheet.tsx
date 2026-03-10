@@ -46,7 +46,7 @@ function getContent(trigger: RatingTriggerResult): {
         body: `You've shown up ${trigger.streakCount} days in a row. That's genuinely impressive.`,
         cta: 'If Showd is helping you, a quick rating means the world to an indie developer.',
       };
-    case 'task_10':
+    case 'task_milestone':
       return {
         title: 'Enjoying Showd?',
         body: `You've completed ${trigger.taskCount} tasks. Takes 30 seconds. Means a lot.`,

@@ -56,12 +56,14 @@ interface TaskFormProps {
   initialData?: Partial<TaskFormData>;
   onSubmit: (data: TaskFormData) => void;
   submitLabel: string;
+  showWitnessPhotoOptionalHint?: boolean;
 }
 
 export function TaskForm({
   initialData,
   onSubmit,
   submitLabel,
+  showWitnessPhotoOptionalHint = false,
 }: TaskFormProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const selectedSoundId = useSelectedSoundId();
@@ -226,16 +228,23 @@ export function TaskForm({
           </View>
 
           <View style={styles.witnessPhotoActions}>
-            <TouchableOpacity
-              style={styles.witnessPhotoButton}
-              onPress={handlePickWitnessPhoto}
-              activeOpacity={0.8}
-            >
-              <Feather name="image" size={16} color={Colors.textPrimary} />
-              <Text style={styles.witnessPhotoButtonText}>
-                {form.witnessPhotoUri ? 'Change photo' : 'Add photo'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.witnessPhotoTopRow}>
+              <TouchableOpacity
+                style={styles.witnessPhotoButton}
+                onPress={handlePickWitnessPhoto}
+                activeOpacity={0.8}
+              >
+                <Feather name="image" size={16} color={Colors.textPrimary} />
+                <Text style={styles.witnessPhotoButtonText}>
+                  {form.witnessPhotoUri ? 'Change photo' : 'Add photo'}
+                </Text>
+              </TouchableOpacity>
+              {showWitnessPhotoOptionalHint && !form.witnessPhotoUri && (
+                <View style={styles.optionalBadge}>
+                  <Text style={styles.optionalBadgeText}>Optional</Text>
+                </View>
+              )}
+            </View>
 
             {form.witnessPhotoUri ? (
               <TouchableOpacity
@@ -245,7 +254,11 @@ export function TaskForm({
                 <Text style={styles.removePhotoText}>Remove</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={styles.witnessPhotoHint}>Shown on reminder screen</Text>
+              <Text style={styles.witnessPhotoHint}>
+                {showWitnessPhotoOptionalHint
+                  ? 'Optional. Shown on reminder screen.'
+                  : 'Shown on reminder screen'}
+              </Text>
             )}
           </View>
         </View>
@@ -521,6 +534,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.xs,
   },
+  witnessPhotoTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   witnessPhotoButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -537,6 +555,17 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.textPrimary,
     fontFamily: FontFamily.semiBold,
+  },
+  optionalBadge: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+  },
+  optionalBadgeText: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+    fontFamily: FontFamily.medium,
   },
   witnessPhotoHint: {
     ...Typography.caption,

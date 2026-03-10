@@ -27,7 +27,6 @@ export type RootStackParamList = {
   SendFeedback: undefined;
   PrivacyPolicy: undefined;
   TermsOfService: undefined;
-  NotificationDebug: undefined;
 };
 
 // Screen prop types
@@ -56,4 +55,3 @@ export type ReminderSoundScreenProps = NativeStackScreenProps<RootStackParamList
 export type SendFeedbackScreenProps = NativeStackScreenProps<RootStackParamList, 'SendFeedback'>;
 export type PrivacyPolicyScreenProps = NativeStackScreenProps<RootStackParamList, 'PrivacyPolicy'>;
 export type TermsOfServiceScreenProps = NativeStackScreenProps<RootStackParamList, 'TermsOfService'>;
-export type NotificationDebugScreenProps = NativeStackScreenProps<RootStackParamList, 'NotificationDebug'>;

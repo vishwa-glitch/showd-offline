@@ -11,7 +11,6 @@ import { ReminderSoundScreen } from '../screens/settings/ReminderSoundScreen';
 import { SendFeedbackScreen } from '../screens/settings/SendFeedbackScreen';
 import { PrivacyPolicyScreen } from '../screens/settings/PrivacyPolicyScreen';
 import { TermsOfServiceScreen } from '../screens/settings/TermsOfServiceScreen';
-import { NotificationDebugScreen } from '../screens/settings/NotificationDebugScreen';
 import { Colors } from '../utils/colors';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -88,11 +87,6 @@ export function RootStack() {
       <Stack.Screen
         name="TermsOfService"
         component={TermsOfServiceScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="NotificationDebug"
-        component={NotificationDebugScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

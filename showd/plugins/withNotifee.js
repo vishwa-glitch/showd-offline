@@ -503,6 +503,28 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
+  public void openFullScreenIntentSettings(Promise promise) {
+    try {
+      Context context = getReactApplicationContext();
+      Intent intent;
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+        intent.setData(Uri.fromParts("package", context.getPackageName(), null));
+      } else {
+        intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+        intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.getPackageName());
+      }
+
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      context.startActivity(intent);
+      promise.resolve(true);
+    } catch (Throwable error) {
+      promise.resolve(false);
+    }
+  }
+
+  @ReactMethod
   public void canDrawOverlays(Promise promise) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
       promise.resolve(true);
@@ -743,7 +765,7 @@ public class ${FULL_SCREEN_MODULE_NAME} extends ReactContextBaseJavaModule {
           "Struggling Today",
           "#7C8DB5",
           v -> {
-            clearPendingAction();
+            savePendingAction("open", taskId);
             removeOverlayInternal();
             openApp(taskId, "open");
           }

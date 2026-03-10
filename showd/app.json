@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "showd",
+    "name": "Showd",
     "slug": "showd",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -23,7 +23,7 @@
       "package": "com.showd.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
-        "backgroundColor": "#FF7FA8"
+        "backgroundColor": "#1A1A1A"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Linking } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, AppState } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
@@ -8,12 +8,16 @@ import {
   useNotificationsGranted,
   useExactAlarmGranted,
   useBatteryOptimizationDisabled,
+  useOverlayGranted,
+  useFullScreenIntentGranted,
   useRefreshAllPermissions,
 } from '../../store/permissionStore';
 import {
   requestNotificationPermission,
   requestExactAlarmPermission,
   requestBatteryOptimizationDisable,
+  requestOverlayPermission,
+  requestFullScreenIntentPermission,
 } from '../../services/permissions';
 
 interface HealthRowProps {
@@ -69,13 +73,30 @@ export function ReminderHealthCheck() {
   const notificationsGranted = useNotificationsGranted();
   const exactAlarmGranted = useExactAlarmGranted();
   const batteryDisabled = useBatteryOptimizationDisabled();
+  const overlayGranted = useOverlayGranted();
+  const fullScreenIntentGranted = useFullScreenIntentGranted();
   const refreshPermissions = useRefreshAllPermissions();
+  const appStateRef = useRef(AppState.currentState);
 
-  useEffect(() => {
-    refreshPermissions();
+  const refreshNow = useCallback(() => {
+    refreshPermissions().catch(() => {});
   }, [refreshPermissions]);
 
+  useEffect(() => {
+    refreshNow();
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
+        refreshNow();
+      }
+      appStateRef.current = nextState;
+    });
+
+    return () => subscription.remove();
+  }, [refreshNow]);
+
   const isAndroid = Platform.OS === 'android';
+  const supportsFullScreenIntentToggle = isAndroid && Number(Platform.Version) >= 34;
 
   return (
     <View style={styles.container}>
@@ -106,9 +127,33 @@ export function ReminderHealthCheck() {
             granted={batteryDisabled}
             onFix={async () => {
               await requestBatteryOptimizationDisable();
-              refreshPermissions();
+              refreshNow();
             }}
           />
+          <View style={styles.divider} />
+
+          <HealthRow
+            label="Display Over Other Apps"
+            granted={overlayGranted}
+            onFix={async () => {
+              await requestOverlayPermission();
+              refreshNow();
+            }}
+          />
+
+          {supportsFullScreenIntentToggle && (
+            <>
+              <View style={styles.divider} />
+              <HealthRow
+                label="Full-Screen Notifications"
+                granted={fullScreenIntentGranted}
+                onFix={async () => {
+                  await requestFullScreenIntentPermission();
+                  refreshNow();
+                }}
+              />
+            </>
+          )}
 
         </>
       )}

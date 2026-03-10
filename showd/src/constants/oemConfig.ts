@@ -25,23 +25,30 @@ const PROBLEMATIC_OEMS = [
   'tecno', 'infinix',
 ];
 
+function getAndroidOEMSignature(): string {
+  if (Platform.OS !== 'android') return '';
+  const brand = (Device.brand ?? '').toLowerCase();
+  const manufacturer = (Device.manufacturer ?? '').toLowerCase();
+  return `${brand} ${manufacturer}`.trim();
+}
+
 export function getOEMBrand(): OEMBrand {
   if (Platform.OS !== 'android') return 'other';
-  const brand = (Device.brand ?? '').toLowerCase();
-  if (['xiaomi', 'redmi', 'poco'].some((k) => brand.includes(k))) return 'xiaomi';
-  if (brand.includes('samsung')) return 'samsung';
-  if (['huawei', 'honor'].some((k) => brand.includes(k))) return 'huawei';
-  if (brand.includes('oneplus')) return 'oneplus';
-  if (brand.includes('oppo')) return 'oppo';
-  if (['vivo', 'iqoo'].some((k) => brand.includes(k))) return 'vivo';
-  if (brand.includes('realme')) return 'realme';
+  const signature = getAndroidOEMSignature();
+  if (['xiaomi', 'redmi', 'poco'].some((k) => signature.includes(k))) return 'xiaomi';
+  if (signature.includes('samsung')) return 'samsung';
+  if (['huawei', 'honor'].some((k) => signature.includes(k))) return 'huawei';
+  if (signature.includes('oneplus')) return 'oneplus';
+  if (signature.includes('oppo')) return 'oppo';
+  if (['vivo', 'iqoo'].some((k) => signature.includes(k))) return 'vivo';
+  if (signature.includes('realme')) return 'realme';
   return 'other';
 }
 
 export function isProblematicOEM(): boolean {
   if (Platform.OS !== 'android') return false;
-  const brand = (Device.brand ?? '').toLowerCase();
-  return PROBLEMATIC_OEMS.some((oem) => brand.includes(oem));
+  const signature = getAndroidOEMSignature();
+  return PROBLEMATIC_OEMS.some((oem) => signature.includes(oem));
 }
 
 export function getOEMDisplayName(): string {

@@ -1,4 +1,5 @@
 import type { Task, TaskEvent } from '../types/task';
+import { parseReminderTime } from './reminderTime';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -102,6 +103,246 @@ export function getCompletionRate(events: readonly TaskEvent[], taskId: string):
   if (terminal.length === 0) return 0;
   const done = terminal.filter((e) => e.status === 'done').length;
   return Math.round((done / terminal.length) * 100);
+}
+
+type TerminalOutcome = 'done' | 'missed' | 'struggled';
+
+export type CompletionRateWindow = '30_days' | 'all_time';
+
+export interface TaskCompletionStats {
+  done: number;
+  missed: number;
+  struggled: number;
+  total: number;
+  completionRate: number;
+}
+
+export interface TaskCompletionTrend {
+  currentRate: number;
+  previousRate: number;
+  delta: number;
+  direction: 'up' | 'down' | 'flat';
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function atLocalNoon(input: Date): Date {
+  const d = new Date(input);
+  d.setHours(12, 0, 0, 0);
+  return d;
+}
+
+function addDays(input: Date, days: number): Date {
+  const d = atLocalNoon(input);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function toEventDayKey(input: Date): string {
+  return input.toISOString().slice(0, 10);
+}
+
+function getDayIndex(input: Date): number {
+  return Math.floor(
+    Date.UTC(input.getFullYear(), input.getMonth(), input.getDate()) / DAY_MS,
+  );
+}
+
+function getFirstDueDate(task: Task): Date | null {
+  if (!task.isActive || task.isPaused) return null;
+
+  const parsed = parseReminderTime(task.reminderTime);
+  if (!parsed) return null;
+
+  const createdAt = new Date(task.createdAt);
+  const createdDay = atLocalNoon(createdAt);
+  const reminderOnCreatedDay = new Date(createdDay);
+  reminderOnCreatedDay.setHours(parsed.hours, parsed.minutes, 0, 0);
+
+  if (task.frequency === 'once') {
+    if (task.oneTimeDate) {
+      const target = new Date(task.oneTimeDate);
+      if (Number.isNaN(target.getTime())) return null;
+      target.setHours(parsed.hours, parsed.minutes, 0, 0);
+      return target.getTime() > createdAt.getTime() ? atLocalNoon(target) : null;
+    }
+    return reminderOnCreatedDay.getTime() > createdAt.getTime() ? createdDay : null;
+  }
+
+  if (task.frequency === 'daily') {
+    return reminderOnCreatedDay.getTime() > createdAt.getTime()
+      ? createdDay
+      : addDays(createdDay, 1);
+  }
+
+  if (task.frequency === 'weekly') {
+    if (!task.frequencyDays?.length) return null;
+    const currentDay = createdAt.getDay();
+    const sortedDays = [...new Set(task.frequencyDays)].sort((a, b) => a - b);
+
+    for (const day of sortedDays) {
+      const diff = (day - currentDay + 7) % 7;
+      const candidate = addDays(createdDay, diff);
+      const candidateWithTime = new Date(candidate);
+      candidateWithTime.setHours(parsed.hours, parsed.minutes, 0, 0);
+      if (candidateWithTime.getTime() > createdAt.getTime()) {
+        return candidate;
+      }
+    }
+
+    const firstDay = sortedDays[0];
+    const wrapDiff = ((firstDay - currentDay + 7) % 7) || 7;
+    return addDays(createdDay, wrapDiff);
+  }
+
+  if (task.frequency === 'custom') {
+    const intervalDays = Math.max(1, task.customIntervalDays ?? 1);
+    return reminderOnCreatedDay.getTime() > createdAt.getTime()
+      ? createdDay
+      : addDays(createdDay, intervalDays);
+  }
+
+  return null;
+}
+
+function isDueOnDate(task: Task, firstDueDate: Date, date: Date): boolean {
+  const firstDayIndex = getDayIndex(firstDueDate);
+  const dateIndex = getDayIndex(date);
+  if (dateIndex < firstDayIndex) return false;
+
+  switch (task.frequency) {
+    case 'once':
+      return dateIndex === firstDayIndex;
+    case 'daily':
+      return true;
+    case 'weekly':
+      return !!task.frequencyDays?.includes(date.getDay());
+    case 'custom': {
+      const intervalDays = Math.max(1, task.customIntervalDays ?? 1);
+      return (dateIndex - firstDayIndex) % intervalDays === 0;
+    }
+    default:
+      return false;
+  }
+}
+
+function getTerminalOutcomeByDay(
+  events: readonly TaskEvent[],
+  taskId: string,
+): Map<string, TerminalOutcome> {
+  const map = new Map<string, TerminalOutcome>();
+
+  for (const event of events) {
+    if (event.taskId !== taskId) continue;
+    if (
+      event.status !== 'done' &&
+      event.status !== 'missed' &&
+      event.status !== 'struggled'
+    ) {
+      continue;
+    }
+
+    const dayKey = event.scheduledFor.slice(0, 10);
+    const existing = map.get(dayKey);
+
+    if (event.status === 'done') {
+      map.set(dayKey, 'done');
+      continue;
+    }
+
+    if (event.status === 'struggled') {
+      if (existing !== 'done') {
+        map.set(dayKey, 'struggled');
+      }
+      continue;
+    }
+
+    if (!existing) {
+      map.set(dayKey, 'missed');
+    }
+  }
+
+  return map;
+}
+
+function getCompletionStatsForRange(
+  task: Task,
+  events: readonly TaskEvent[],
+  startDate: Date,
+  endDate: Date,
+): TaskCompletionStats {
+  const firstDueDate = getFirstDueDate(task);
+  if (!firstDueDate) {
+    return { done: 0, missed: 0, struggled: 0, total: 0, completionRate: 0 };
+  }
+
+  const rangeStart = atLocalNoon(startDate);
+  const rangeEnd = atLocalNoon(endDate);
+  if (rangeStart.getTime() > rangeEnd.getTime()) {
+    return { done: 0, missed: 0, struggled: 0, total: 0, completionRate: 0 };
+  }
+
+  const outcomeByDay = getTerminalOutcomeByDay(events, task.id);
+
+  let done = 0;
+  let missed = 0;
+  let struggled = 0;
+
+  for (let cursor = rangeStart; cursor.getTime() <= rangeEnd.getTime(); cursor = addDays(cursor, 1)) {
+    if (!isDueOnDate(task, firstDueDate, cursor)) continue;
+
+    const outcome = outcomeByDay.get(toEventDayKey(cursor));
+    if (outcome === 'done') done += 1;
+    else if (outcome === 'missed') missed += 1;
+    else if (outcome === 'struggled') struggled += 1;
+  }
+
+  const total = done + missed + struggled;
+  const completionRate = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  return { done, missed, struggled, total, completionRate };
+}
+
+export function getTaskCompletionStats(
+  task: Task,
+  events: readonly TaskEvent[],
+  window: CompletionRateWindow,
+): TaskCompletionStats {
+  const today = atLocalNoon(new Date());
+  if (window === 'all_time') {
+    const firstDueDate = getFirstDueDate(task);
+    if (!firstDueDate) {
+      return { done: 0, missed: 0, struggled: 0, total: 0, completionRate: 0 };
+    }
+    return getCompletionStatsForRange(task, events, firstDueDate, today);
+  }
+
+  const thirtyDayStart = addDays(today, -29);
+  return getCompletionStatsForRange(task, events, thirtyDayStart, today);
+}
+
+export function getTaskCompletionTrend(
+  task: Task,
+  events: readonly TaskEvent[],
+): TaskCompletionTrend {
+  const today = atLocalNoon(new Date());
+  const currentStart = addDays(today, -29);
+  const previousEnd = addDays(currentStart, -1);
+  const previousStart = addDays(previousEnd, -29);
+
+  const current = getCompletionStatsForRange(task, events, currentStart, today);
+  const previous = getCompletionStatsForRange(task, events, previousStart, previousEnd);
+
+  const delta = current.completionRate - previous.completionRate;
+  const direction: TaskCompletionTrend['direction'] =
+    delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+
+  return {
+    currentRate: current.completionRate,
+    previousRate: previous.completionRate,
+    delta,
+    direction,
+  };
 }
 
 /**

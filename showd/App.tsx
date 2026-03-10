@@ -26,6 +26,7 @@ import {
   useTriggerReminder,
   useActiveTaskId,
   useDismissReminder,
+  useOpenStrugglingSheet,
 } from './src/store/reminderStore';
 import {
   useTasks,
@@ -63,6 +64,7 @@ export default function App() {
   const triggerReminder = useTriggerReminder();
   const activeReminderTaskId = useActiveTaskId();
   const dismissReminder = useDismissReminder();
+  const openStrugglingSheet = useOpenStrugglingSheet();
   const completeTask = useCompleteTask();
   const snoozeTask = useSnoozeTask();
   const getTaskById = useGetTaskById();
@@ -91,10 +93,18 @@ export default function App() {
     if (!pending) return null;
 
     const { action, taskId } = pending;
-    if (!taskId || action === 'open') return null;
+    if (!taskId) return null;
 
     const task = getTaskById(taskId);
     if (!task) return taskId;
+
+    if (action === 'open') {
+      // User tapped "Struggling Today" on native overlay.
+      // Re-open reminder context and immediately show struggling sheet.
+      triggerReminder(taskId);
+      openStrugglingSheet();
+      return taskId;
+    }
 
     if (action === 'done') {
       completeTask(taskId);
@@ -117,6 +127,8 @@ export default function App() {
     return null;
   }, [
     getTaskById,
+    triggerReminder,
+    openStrugglingSheet,
     completeTask,
     activeReminderTaskId,
     dismissReminder,
