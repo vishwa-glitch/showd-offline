@@ -875,9 +875,50 @@ const withNotifee = (config) => {
   });
 };
 
+const withGradleWrapper = (config) => {
+  return withDangerousMod(config, ['android', async (modConfig) => {
+    const wrapperPath = path.join(
+      modConfig.modRequest.projectRoot,
+      'android', 'gradle', 'wrapper', 'gradle-wrapper.properties'
+    );
+    if (fs.existsSync(wrapperPath)) {
+      let content = fs.readFileSync(wrapperPath, 'utf8');
+      content = content.replace(
+        /distributionUrl=.*gradle-.*-bin\.zip/,
+        'distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-bin.zip'
+      );
+      fs.writeFileSync(wrapperPath, content);
+    }
+    return modConfig;
+  }]);
+};
+
+const withSettingsGradle = (config) => {
+  return withDangerousMod(config, ['android', async (modConfig) => {
+    const settingsPath = path.join(
+      modConfig.modRequest.projectRoot,
+      'android', 'settings.gradle'
+    );
+    if (!fs.existsSync(settingsPath)) return modConfig;
+
+    let content = fs.readFileSync(settingsPath, 'utf8');
+
+    // Force Expo autolinking unconditionally — bypass EXPO_USE_COMMUNITY_AUTOLINKING
+    content = content.replace(
+      /if\s*\(System\.getenv\(['"']EXPO_USE_COMMUNITY_AUTOLINKING['"']\)\s*==\s*['"']1['"']\)\s*\{[\s\S]*?\}\s*else\s*\{[\s\S]*?\}/,
+      'ex.autolinkLibrariesFromCommand(expoAutolinking.rnConfigCommand)'
+    );
+
+    fs.writeFileSync(settingsPath, content);
+    return modConfig;
+  }]);
+};
+
 module.exports = (config) => {
   config = withNotifee(config);
   config = withReminderSound(config);
   config = withFullScreenIntentDetector(config);
+  config = withGradleWrapper(config);
+  config = withSettingsGradle(config); // must run last
   return config;
 };
