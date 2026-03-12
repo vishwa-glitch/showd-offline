@@ -32,97 +32,6 @@ const writeFileIfChanged = (filePath, content) => {
   fs.writeFileSync(filePath, content);
 };
 
-const withNotifeeDependencyResolution = (config) => {
-  return withDangerousMod(config, ['android', async (modConfig) => {
-    const projectRoot = modConfig.modRequest.projectRoot;
-    const settingsGradlePath = path.join(projectRoot, 'android', 'settings.gradle');
-    const rootBuildGradlePath = path.join(projectRoot, 'android', 'build.gradle');
-    const appBuildGradlePath = path.join(projectRoot, 'android', 'app', 'build.gradle');
-
-    const settingsGradle = readFileIfExists(settingsGradlePath);
-    if (settingsGradle) {
-      let patchedSettings = settingsGradle;
-      const localRepoLine = 'maven { url("$rootDir/../node_modules/@notifee/react-native/android/libs") }';
-      const hostedRepoLine = 'maven { url("https://maven.notifee.app") }';
-      const injectRepoLine = (content, repoLine) => {
-        if (content.includes(repoLine)) return content;
-
-        const withExistingRepos = content.replace(
-          /dependencyResolutionManagement\s*\{[\s\S]*?repositories\s*\{/,
-          (match) => `${match}\n        ${repoLine}`,
-        );
-        if (withExistingRepos !== content) return withExistingRepos;
-
-        return content.replace(
-          /dependencyResolutionManagement\s*\{/,
-          (match) => `${match}\n    repositories {\n        ${repoLine}\n    }`,
-        );
-      };
-
-      patchedSettings = injectRepoLine(patchedSettings, localRepoLine);
-      patchedSettings = injectRepoLine(patchedSettings, hostedRepoLine);
-
-      if (
-        patchedSettings !== settingsGradle &&
-        patchedSettings.includes('dependencyResolutionManagement') &&
-        patchedSettings.includes('repositories')
-      ) {
-        writeFileIfChanged(settingsGradlePath, patchedSettings);
-      }
-    }
-
-    const rootBuildGradle = readFileIfExists(rootBuildGradlePath);
-    if (rootBuildGradle) {
-      let patchedRootBuildGradle = rootBuildGradle;
-      const localRepoLine = 'maven { url("$rootDir/../node_modules/@notifee/react-native/android/libs") }';
-      const hostedRepoLine = 'maven { url("https://maven.notifee.app") }';
-
-      const injectAllProjectsRepo = (content, repoLine) => {
-        if (content.includes(repoLine)) return content;
-
-        const withAllProjectsRepos = content.replace(
-          /allprojects\s*\{[\s\S]*?repositories\s*\{/,
-          (match) => `${match}\n    ${repoLine}`,
-        );
-        if (withAllProjectsRepos !== content) return withAllProjectsRepos;
-
-        return `${content}
-
-allprojects {
-  repositories {
-    ${repoLine}
-  }
-}
-`;
-      };
-
-      patchedRootBuildGradle = injectAllProjectsRepo(patchedRootBuildGradle, localRepoLine);
-      patchedRootBuildGradle = injectAllProjectsRepo(patchedRootBuildGradle, hostedRepoLine);
-
-      if (patchedRootBuildGradle !== rootBuildGradle) {
-        writeFileIfChanged(rootBuildGradlePath, patchedRootBuildGradle);
-      }
-    }
-
-    const appBuildGradle = readFileIfExists(appBuildGradlePath);
-    if (appBuildGradle && !appBuildGradle.includes('details.requested.group == "app.notifee"')) {
-      const notifeePinSnippet = `
-configurations.configureEach {
-    resolutionStrategy.eachDependency { details ->
-        if (details.requested.group == "app.notifee" && details.requested.name == "core") {
-            details.useVersion("202108261754")
-            details.because("Pin Notifee core to avoid dynamic version metadata failures")
-        }
-    }
-}
-`;
-      writeFileIfChanged(appBuildGradlePath, `${appBuildGradle}\n${notifeePinSnippet}`);
-    }
-
-    return modConfig;
-  }]);
-};
-
 const withReminderSound = (config) => {
   return withDangerousMod(config, ['android', async (modConfig) => {
     const projectRoot = modConfig.modRequest.projectRoot;
@@ -970,6 +879,5 @@ module.exports = (config) => {
   config = withNotifee(config);
   config = withReminderSound(config);
   config = withFullScreenIntentDetector(config);
-  config = withNotifeeDependencyResolution(config);
   return config;
 };
