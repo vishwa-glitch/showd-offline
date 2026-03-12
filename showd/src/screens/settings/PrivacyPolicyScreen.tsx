@@ -31,83 +31,38 @@ export function PrivacyPolicyScreen({ navigation }: PrivacyPolicyScreenProps) {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.lastUpdated}>Last updated: February 2026</Text>
+        <Text style={styles.lastUpdated}>Last updated: March 2026</Text>
         <Text style={styles.body}>
-          {"Showd (\u201Cwe\u201D, \u201Cour\u201D, \u201Cus\u201D) is committed to protecting your privacy. This policy explains what data we collect, how we use it, and your rights."}
+          Showd is built on one principle: your data stays on your device. Always.
         </Text>
 
         <Section title="What We Collect">
-          {`Account Information
-\u2022 Your phone number (required for account creation and login)
-\u2022 Your display name and optional profile photo
-\u2022 Your timezone (automatically detected)
-
-Task Data
-\u2022 Task names, descriptions, categories, and schedules you create
-\u2022 Your responses to reminders (done, snoozed, struggled, missed)
-\u2022 Focus timer data (start times, durations, pauses, extensions)
-\u2022 Struggling reasons you choose to log
-
-Witness Information
-\u2022 Phone numbers and names of witnesses you add
-\u2022 Witness connection status and notification preferences
-\u2022 SMS delivery records
-
-Device Information
-\u2022 Device type and operating system version
-\u2022 Notification and permission settings
-\u2022 App version`}
+          {`\u2022 Showd collects nothing. There are no accounts, no sign-ins, and no servers.
+\u2022 All tasks, schedules, streaks, completion history, and witness names and photos are stored locally on your device only.
+\u2022 We have no access to any of this data.`}
         </Section>
 
-        <Section title="How We Use Your Data">
-          {`\u2022 To deliver reminders at the times you set
-\u2022 To send SMS notifications to your chosen witnesses
-\u2022 To calculate your streaks, completion rates, and progress
-\u2022 To improve the app experience and fix bugs
-\u2022 We never sell your data to third parties
-\u2022 We never show you ads`}
+        <Section title="Witness Feature">
+          {`\u2022 Witness names and photos you add are stored entirely on your device.
+\u2022 No contact is ever made with your witness. No SMS, no notifications, no network requests of any kind.`}
         </Section>
 
-        <Section title="SMS and Witness Communication">
-          {`\u2022 We only send SMS messages to phone numbers you explicitly provide as witnesses
-\u2022 Witnesses can opt out at any time by replying STOP to any message
-\u2022 SMS content is limited to task status updates \u2014 we never share personal details beyond what you configure
-\u2022 SMS delivery is handled through Twilio, a trusted communications provider`}
+        <Section title="Internet & Permissions">
+          {`\u2022 Showd requires no internet connection and makes no network requests.
+\u2022 The only device permissions used are local notifications and alarm scheduling to fire reminders at your set times.`}
         </Section>
 
-        <Section title="Data Storage and Security">
-          {`\u2022 Your data is stored securely using industry-standard encryption
-\u2022 Authentication is handled via secure phone number verification
-\u2022 We use Supabase (hosted on AWS) for data storage with row-level security
-\u2022 Profile photos are stored in encrypted cloud storage`}
-        </Section>
-
-        <Section title="Your Rights">
-          {`\u2022 You can view all your data within the app at any time
-\u2022 You can delete individual tasks and their history
-\u2022 You can remove witness connections at any time
-\u2022 You can delete your entire account and all associated data from Settings
-\u2022 Account deletion is permanent and cannot be undone`}
-        </Section>
-
-        <Section title="Data Retention">
-          {`\u2022 Active account data is retained as long as your account exists
-\u2022 When you delete your account, all data is permanently removed within 30 days
-\u2022 SMS logs are retained for 90 days for delivery verification, then deleted
-\u2022 Anonymous, aggregated usage statistics may be retained indefinitely`}
+        <Section title="Third Parties">
+          {`\u2022 We use no third-party analytics, advertising SDKs, or tracking tools.
+\u2022 Your data is never sold, shared, or transmitted anywhere.`}
         </Section>
 
         <Section title="Children's Privacy">
-          {`\u2022 Showd is not intended for children under 13
-\u2022 We do not knowingly collect data from children under 13`}
+          {`\u2022 Showd is safe for all ages. We collect no data from anyone.`}
         </Section>
 
         <Section title="Changes to This Policy">
-          {"We may update this policy from time to time. We\u2019ll notify you of significant changes via in-app notification."}
-        </Section>
-
-        <Section title="Contact Us">
-          {"Questions about your privacy? Email us at privacy@showd.app"}
+          {`\u2022 If this policy changes, the update will be reflected in the app and on our Play Store listing.`}
         </Section>
       </ScrollView>
     </SafeAreaView>

@@ -53,7 +53,8 @@
         }
       ],
       "expo-audio",
-      "./plugins/withNotifee.js"
+      "./plugins/withNotifee.js",
+      "expo-asset"
     ],
     "extra": {
       "eas": {
