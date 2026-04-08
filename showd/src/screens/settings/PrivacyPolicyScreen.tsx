@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
@@ -17,6 +17,7 @@ function Section({ title, children }: { title: string; children: string }) {
 }
 
 export function PrivacyPolicyScreen({ navigation }: PrivacyPolicyScreenProps) {
+  const insets = useSafeAreaInsets();
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -28,7 +29,10 @@ export function PrivacyPolicyScreen({ navigation }: PrivacyPolicyScreenProps) {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Spacing['4xl'] + insets.bottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.lastUpdated}>Last updated: March 2026</Text>

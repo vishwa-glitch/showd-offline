@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
@@ -66,6 +67,7 @@ export function TaskForm({
   showWitnessPhotoOptionalHint = false,
 }: TaskFormProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
   const selectedSoundId = useSelectedSoundId();
   const defaultSnoozeLimit = useDefaultSnoozeLimit();
   const [form, setForm] = useState<TaskFormData>({
@@ -140,7 +142,10 @@ export function TaskForm({
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={[
+        styles.contentContainer,
+        { paddingBottom: Spacing['4xl'] + insets.bottom },
+      ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >

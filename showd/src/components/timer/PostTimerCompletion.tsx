@@ -12,6 +12,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
@@ -43,6 +44,7 @@ import type { RootStackParamList } from '../../types/navigation';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function PostTimerCompletion() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const completedTaskId = useCompletedTimerTaskId();
   const completedDurationSeconds = useCompletedDurationSeconds();
@@ -99,7 +101,15 @@ export function PostTimerCompletion() {
   }, [openStrugglingSheet]);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+        },
+      ]}
+    >
       {/* Category icon */}
       <View style={styles.categoryIcon}>
         <Feather name={categoryIcon} size={48} color="rgba(255,255,255,0.9)" />
@@ -175,7 +185,9 @@ export function PostTimerCompletion() {
       </View>
 
       {/* Branding */}
-      <Text style={styles.branding}>Showd.</Text>
+      <Text style={[styles.branding, { bottom: Spacing['4xl'] + insets.bottom }]}>
+        Showd.
+      </Text>
     </View>
   );
 }
@@ -279,7 +291,6 @@ const styles = StyleSheet.create({
   },
   branding: {
     position: 'absolute',
-    bottom: 48,
     fontFamily: FontFamily.bold,
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.1)',

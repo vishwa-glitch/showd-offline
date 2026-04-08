@@ -11,6 +11,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
@@ -36,6 +37,7 @@ import type { FocusTimerScreenProps } from '../../types/navigation';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function FocusTimerScreen({ navigation, route }: FocusTimerScreenProps) {
+  const insets = useSafeAreaInsets();
   const activeTaskId = useActiveTimerTaskId();
   const remainingSeconds = useTimerRemainingSeconds();
   const isPaused = useTimerIsPaused();
@@ -106,10 +108,21 @@ export function FocusTimerScreen({ navigation, route }: FocusTimerScreenProps) {
   const targetStr = formatDuration(durationSeconds);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+        },
+      ]}
+    >
       {/* Back arrow */}
       <TouchableOpacity
-        style={styles.backButton}
+        style={[
+          styles.backButton,
+          { top: insets.top + Spacing['2xl'] },
+        ]}
         onPress={() => navigation.goBack()}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >

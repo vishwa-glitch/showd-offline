@@ -16,6 +16,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
@@ -72,6 +73,7 @@ export function RatingPromptSheet({
   onRate,
   onDismiss,
 }: RatingPromptSheetProps) {
+  const insets = useSafeAreaInsets();
   const translateY = useSharedValue(SHEET_HEIGHT);
   const backdropOpacity = useSharedValue(0);
   const context = useSharedValue(0);
@@ -127,7 +129,13 @@ export function RatingPromptSheet({
       </TouchableWithoutFeedback>
 
       <GestureDetector gesture={pan}>
-        <Animated.View style={[styles.sheet, sheetStyle]}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            sheetStyle,
+            { paddingBottom: Spacing['2xl'] + insets.bottom },
+          ]}
+        >
           {/* Drag handle */}
           <View style={styles.handleRow}>
             <View style={styles.handle} />
@@ -184,7 +192,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing['2xl'],
     ...Shadows.lg,
   },
   handleRow: {

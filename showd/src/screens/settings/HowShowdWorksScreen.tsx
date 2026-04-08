@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Colors } from '../../utils/colors';
@@ -54,6 +54,7 @@ function StepSection({
 }
 
 export function HowShowdWorksScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const tasks = useTasks();
   const hasTasks = tasks.length > 0;
 
@@ -70,7 +71,10 @@ export function HowShowdWorksScreen({ navigation }: Props) {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Spacing['4xl'] * 2 + insets.bottom },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {/* Hero Header */}

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Animated, { FadeInUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
@@ -28,6 +29,7 @@ interface FailedReminderSheetProps {
 }
 
 export function FailedReminderSheet({ taskName, onDismiss }: FailedReminderSheetProps) {
+  const insets = useSafeAreaInsets();
   const notificationsGranted = useNotificationsGranted();
   const refreshPermissions = useRefreshAllPermissions();
 
@@ -48,7 +50,12 @@ export function FailedReminderSheet({ taskName, onDismiss }: FailedReminderSheet
         {/* Handle */}
         <View style={styles.handle} />
 
-        <View style={styles.content}>
+        <View
+          style={[
+            styles.content,
+            { paddingBottom: Spacing['3xl'] + insets.bottom },
+          ]}
+        >
           <Feather name="alert-circle" size={32} color={Colors.snooze} />
 
           <Text style={styles.heading}>
@@ -105,7 +112,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing['3xl'],
     alignItems: 'center',
     gap: Spacing.base,
   },

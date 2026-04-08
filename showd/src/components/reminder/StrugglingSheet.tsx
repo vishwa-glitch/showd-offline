@@ -13,6 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInUp, FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
@@ -40,6 +41,7 @@ const REASONS = [
 type Reason = (typeof REASONS)[number];
 
 export function StrugglingSheet() {
+  const insets = useSafeAreaInsets();
   const [selectedReason, setSelectedReason] = useState<Reason | null>(null);
   const [otherNote, setOtherNote] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -130,7 +132,10 @@ export function StrugglingSheet() {
           <ScrollView
             ref={scrollRef}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: Spacing['3xl'] + insets.bottom },
+            ]}
             keyboardShouldPersistTaps="handled"
           >
             {/* Heading */}

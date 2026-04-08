@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
@@ -24,6 +24,7 @@ const REASONS = [
 ] as const;
 
 export function SendFeedbackScreen({ navigation }: SendFeedbackScreenProps) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
 
   const handleRateOnPlayStore = async () => {
@@ -46,7 +47,10 @@ export function SendFeedbackScreen({ navigation }: SendFeedbackScreenProps) {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Spacing['4xl'] + insets.bottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* App icon & appeal */}

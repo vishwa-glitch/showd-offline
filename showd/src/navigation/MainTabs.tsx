@@ -8,12 +8,15 @@ import { ProgressScreen } from '../screens/main/ProgressScreen';
 import { SettingsScreen } from '../screens/main/SettingsScreen';
 import { Colors } from '../utils/colors';
 import { FontFamily } from '../utils/typography';
+import { Spacing } from '../utils/spacing';
 import type { MainTabParamList } from '../types/navigation';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function MainTabs() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = 64 + insets.bottom;
+  const tabBarPaddingBottom = Spacing.sm + insets.bottom;
 
   return (
     <Tab.Navigator
@@ -29,8 +32,8 @@ export function MainTabs() {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
           borderTopWidth: 0.5,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          paddingBottom: Platform.OS === 'ios' ? insets.bottom : 8,
+          height: Platform.OS === 'ios' ? 88 : tabBarHeight,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom : tabBarPaddingBottom,
           paddingTop: 8,
         },
       }}

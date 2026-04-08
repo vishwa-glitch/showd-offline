@@ -9,6 +9,7 @@ import {
     Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
@@ -25,6 +26,7 @@ interface FullScreenIntentGuideProps {
 }
 
 export function FullScreenIntentGuide({ visible, onDismiss }: FullScreenIntentGuideProps) {
+    const insets = useSafeAreaInsets();
     const brand = getOEMBrand();
     const brandName = getOEMDisplayName();
     const steps = getFullScreenIntentInstructions(brand);
@@ -47,7 +49,10 @@ export function FullScreenIntentGuide({ visible, onDismiss }: FullScreenIntentGu
                     <View style={styles.handleBar} />
 
                     <ScrollView
-                        contentContainerStyle={styles.content}
+                        contentContainerStyle={[
+                            styles.content,
+                            { paddingBottom: Spacing['3xl'] + insets.bottom },
+                        ]}
                         showsVerticalScrollIndicator={false}
                         bounces={false}
                     >

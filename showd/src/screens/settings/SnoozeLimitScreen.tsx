@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
@@ -30,6 +30,7 @@ const OPTIONS = [
 ] as const;
 
 export function SnoozeLimitScreen({ navigation }: SnoozeLimitScreenProps) {
+  const insets = useSafeAreaInsets();
   const currentLimit = useDefaultSnoozeLimit();
   const updateDefaultSnoozeLimit = useUpdateDefaultSnoozeLimit();
 
@@ -50,7 +51,10 @@ export function SnoozeLimitScreen({ navigation }: SnoozeLimitScreenProps) {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Spacing['4xl'] + insets.bottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.explanation}>

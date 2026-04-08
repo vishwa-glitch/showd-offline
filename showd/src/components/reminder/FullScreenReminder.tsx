@@ -21,6 +21,7 @@ import Animated, {
   FadeInDown,
   Easing,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../utils/colors';
 import { Typography, FontFamily } from '../../utils/typography';
 import { Spacing, BorderRadius } from '../../utils/spacing';
@@ -52,6 +53,7 @@ interface FullScreenReminderProps {
 }
 
 export function FullScreenReminder({ task }: FullScreenReminderProps) {
+  const insets = useSafeAreaInsets();
   const [isHandlingAction, setIsHandlingAction] = useState(false);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const pendingReminders = usePendingReminders();
@@ -199,7 +201,15 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
   }, [openStrugglingSheet, task.id, isHandlingAction]);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+        },
+      ]}
+    >
       {/* Category icon */}
       <View style={styles.categoryIcon}>
         <Feather name={categoryIcon} size={48} color="rgba(255,255,255,0.9)" />
@@ -299,7 +309,9 @@ export function FullScreenReminder({ task }: FullScreenReminderProps) {
       </View>
 
       {/* Showd branding */}
-      <Text style={styles.branding}>Showd.</Text>
+      <Text style={[styles.branding, { bottom: Spacing['4xl'] + insets.bottom }]}>
+        Showd.
+      </Text>
     </View>
   );
 }
@@ -406,7 +418,6 @@ const styles = StyleSheet.create({
   },
   branding: {
     position: 'absolute',
-    bottom: 48,
     fontFamily: FontFamily.bold,
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.1)',
