@@ -10,6 +10,17 @@ export type TaskFrequency = 'once' | 'daily' | 'weekly' | 'custom';
 
 export type TaskEventStatus = 'pending' | 'in_progress' | 'done' | 'snoozed' | 'struggled' | 'missed';
 
+export type TriggerType = 'fixed_time' | 'first_unlock';
+
+export type DismissAction = 'swipe' | 'math' | 'shake';
+
+export type NagInterval = 'off' | '3m' | '5m' | '10m';
+
+export interface FirstUnlockWindow {
+  startTime: string;  // "HH:MM" in 24h format, e.g. "08:00"
+  endTime: string;    // "HH:MM" in 24h format, e.g. "10:00"
+}
+
 export interface Task {
   id: string;
   userId: string;
@@ -17,8 +28,6 @@ export interface Task {
   description?: string;
   category: TaskCategory;
   reminderTime: string;
-  witnessName?: string;
-  witnessPhotoUri?: string;
   frequency: TaskFrequency;
   frequencyDays?: number[];
   customIntervalDays?: number;
@@ -27,6 +36,12 @@ export interface Task {
   durationMinutes?: number;
   requirePhotoProof: boolean;
   reminderSoundId?: string;
+  triggerType: TriggerType;
+  firstUnlockWindow?: FirstUnlockWindow;
+  dismissAction: DismissAction;
+  nagInterval: NagInterval;
+  locationNote?: string;
+  weeklyGoal: number;
   isActive: boolean;
   isPaused: boolean;
   currentStreak: number;
@@ -64,8 +79,6 @@ export interface TaskFormData {
   description: string;
   category: TaskCategory | null;
   reminderTime: string;
-  witnessName: string;
-  witnessPhotoUri: string;
   frequency: TaskFrequency;
   frequencyDays: number[];
   customIntervalDays: number;
@@ -74,6 +87,12 @@ export interface TaskFormData {
   durationMinutes: number | null;
   requirePhotoProof: boolean;
   reminderSoundId: string | null;
+  triggerType: TriggerType;
+  firstUnlockWindow: FirstUnlockWindow | null;
+  dismissAction: DismissAction;
+  nagInterval: NagInterval;
+  locationNote: string;
+  weeklyGoal: number;
 }
 
 export const TASK_CATEGORIES: { key: TaskCategory; label: string; icon: string }[] = [
@@ -90,8 +109,6 @@ export const DEFAULT_FORM_DATA: TaskFormData = {
   description: '',
   category: null,
   reminderTime: '08:00',
-  witnessName: '',
-  witnessPhotoUri: '',
   frequency: 'daily',
   frequencyDays: [],
   customIntervalDays: 1,
@@ -100,4 +117,25 @@ export const DEFAULT_FORM_DATA: TaskFormData = {
   durationMinutes: null,
   requirePhotoProof: false,
   reminderSoundId: null,
+  triggerType: 'fixed_time',
+  firstUnlockWindow: null,
+  dismissAction: 'swipe',
+  nagInterval: 'off',
+  locationNote: '',
+  weeklyGoal: 5,
 };
+
+// Lazy import to avoid circular deps. Call only at form-init time, not at module load.
+export function getDefaultFormData(): TaskFormData {
+  // Inline require to break the import cycle. onboardingStore imports types from this file.
+  const { useOnboardingStore } = require('../store/onboardingStore') as typeof import('../store/onboardingStore');
+  const onboarding = useOnboardingStore.getState();
+
+  return {
+    ...DEFAULT_FORM_DATA,
+    snoozeLimit: onboarding.defaultSnoozeLimit,
+    dismissAction: onboarding.defaultDismissAction,
+    nagInterval: onboarding.defaultNagInterval,
+    weeklyGoal: onboarding.defaultWeeklyGoal,
+  };
+}

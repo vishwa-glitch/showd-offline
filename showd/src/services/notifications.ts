@@ -245,17 +245,13 @@ function buildNotification(task: Task, notificationId: string = task.id): Notifi
   // Use the globally selected sound (offline, from AsyncStorage-persisted store)
   const soundId = getSelectedSoundId();
   const channelId = getChannelIdForSound(soundId);
-  const witnessName = task.witnessName?.trim() || '';
   const description = task.description?.trim() || '';
-  const motivationLine = witnessName
-    ? `${witnessName} is counting on you`
-    : 'Time to show up for yourself';
 
   return {
     id: notificationId,
     title: task.name,
-    body: motivationLine,
-    data: { taskId: task.id, description, soundId, witnessPhotoUri: task.witnessPhotoUri || '' },
+    body: 'Time to show up for yourself',
+    data: { taskId: task.id, description, soundId },
     android: {
       channelId,
       importance: AndroidImportance.HIGH,
@@ -316,6 +312,7 @@ export async function scheduleTaskReminder(task: Task): Promise<void> {
 export async function scheduleNextRegularReminder(task: Task): Promise<void> {
   if (!task.isActive) return;
   if (task.frequency === 'once') return;
+  if (task.triggerType === 'first_unlock') return;
 
   const triggerTime = getNextTriggerTime(task, false);
   if (!triggerTime) return;
@@ -440,9 +437,10 @@ export async function reconcileNotifications(tasks: Task[]): Promise<void> {
   // Cancel all existing trigger notifications
   await notifee.cancelTriggerNotifications();
 
-  // Reschedule for all active tasks
+  // Reschedule for all active tasks — first_unlock tasks are driven by the
+  // native UserPresentReceiver, not by JS-scheduled notifications.
   for (const task of tasks) {
-    if (task.isActive) {
+    if (task.isActive && task.triggerType !== 'first_unlock') {
       await scheduleTaskReminder(task);
     }
   }

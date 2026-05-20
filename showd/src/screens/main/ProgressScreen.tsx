@@ -21,6 +21,8 @@ import {
   getTaskCompletionStats,
   getTaskCompletionTrend,
   getTimedTaskStats,
+  computeWeeklyStreak,
+  computeLongestWeeklyStreak,
   type CompletionRateWindow,
   type TaskCompletionStats,
   type TaskCompletionTrend,
@@ -91,8 +93,15 @@ export function ProgressScreen() {
     setRatingTrigger(null);
   }, []);
 
-  const maxStreak = tasks.reduce((max, t) => Math.max(max, t.currentStreak), 0);
-  const longestStreak = tasks.reduce((max, t) => Math.max(max, t.longestStreak), 0);
+  const bestCurrentStreak = useMemo(
+    () => tasks.reduce((max, task) => Math.max(max, computeWeeklyStreak(events, task)), 0),
+    [tasks, events],
+  );
+
+  const bestLongestStreak = useMemo(
+    () => tasks.reduce((max, task) => Math.max(max, computeLongestWeeklyStreak(events, task)), 0),
+    [tasks, events],
+  );
 
   const rateDataByTask = useMemo(() => {
     const map = new Map<string, { stats: TaskCompletionStats; trend: TaskCompletionTrend }>();
@@ -150,20 +159,22 @@ export function ProgressScreen() {
             <Feather name="zap" size={22} color={Colors.snooze} />
           </View>
           <Text style={styles.streakValue}>
-            {maxStreak > 0 ? `${maxStreak} Day Streak` : 'No active streak'}
+            {bestCurrentStreak > 0
+              ? `${bestCurrentStreak}-week streak`
+              : 'No active streak'}
           </Text>
           <Text style={styles.streakSubtext}>
-            {maxStreak > 0
-              ? 'Keep it going! Complete all tasks today.'
-              : 'Start a streak by completing all tasks today'}
+            {bestCurrentStreak >= 1
+              ? 'Keep showing up at your pace'
+              : 'Build your first week'}
           </Text>
         </View>
 
         {/* Stats Cards */}
         <View style={styles.statsRow}>
           <Card style={styles.statCard}>
-            <Text style={styles.statNumber}>{longestStreak}</Text>
-            <Text style={styles.statLabel}>Longest streak</Text>
+            <Text style={styles.statNumber}>{bestLongestStreak}</Text>
+            <Text style={styles.statLabel}>Best streak (wk)</Text>
           </Card>
           <Card style={styles.statCard}>
             <Text style={styles.statNumber}>{tasks.length}</Text>

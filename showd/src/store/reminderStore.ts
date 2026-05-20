@@ -5,15 +5,12 @@ interface ReminderState {
   pendingReminders: string[];
   activeTaskId: string | null;
   snoozeCounts: Record<string, number>;
-  showStrugglingSheet: boolean;
   showSuccessAnimation: boolean;
   completedStreak: number | null;
 
   triggerReminder: (taskId: string) => void;
   dismissReminder: () => void;
   snoozeReminder: (taskId: string) => void;
-  openStrugglingSheet: () => void;
-  closeStrugglingSheet: () => void;
   showSuccess: (streak?: number) => void;
   hideSuccess: () => void;
   getSnoozeCount: (taskId: string) => number;
@@ -24,7 +21,6 @@ const useReminderStoreBase = create<ReminderState>((set, get) => ({
   pendingReminders: [],
   activeTaskId: null,
   snoozeCounts: {},
-  showStrugglingSheet: false,
   showSuccessAnimation: false,
   completedStreak: null,
 
@@ -54,9 +50,9 @@ const useReminderStoreBase = create<ReminderState>((set, get) => ({
     if (pendingReminders.length > 0) {
       // Show next queued reminder
       const [next, ...rest] = pendingReminders;
-      set({ activeTaskId: next, pendingReminders: rest, showStrugglingSheet: false });
+      set({ activeTaskId: next, pendingReminders: rest });
     } else {
-      set({ activeTaskId: null, showStrugglingSheet: false });
+      set({ activeTaskId: null });
     }
   },
 
@@ -68,9 +64,6 @@ const useReminderStoreBase = create<ReminderState>((set, get) => ({
     });
     get().dismissReminder();
   },
-
-  openStrugglingSheet: () => set({ showStrugglingSheet: true }),
-  closeStrugglingSheet: () => set({ showStrugglingSheet: false }),
 
   showSuccess: (streak) =>
     set({ showSuccessAnimation: true, completedStreak: streak || null }),
@@ -86,14 +79,11 @@ const useReminderStoreBase = create<ReminderState>((set, get) => ({
 export const useActiveTaskId = () => useReminderStoreBase((s) => s.activeTaskId);
 export const usePendingReminders = () => useReminderStoreBase(useShallow((s) => s.pendingReminders));
 export const useSnoozeCounts = () => useReminderStoreBase(useShallow((s) => s.snoozeCounts));
-export const useShowStrugglingSheet = () => useReminderStoreBase((s) => s.showStrugglingSheet);
 export const useShowSuccessAnimation = () => useReminderStoreBase((s) => s.showSuccessAnimation);
 export const useCompletedStreak = () => useReminderStoreBase((s) => s.completedStreak);
 export const useTriggerReminder = () => useReminderStoreBase((s) => s.triggerReminder);
 export const useDismissReminder = () => useReminderStoreBase((s) => s.dismissReminder);
 export const useSnoozeReminder = () => useReminderStoreBase((s) => s.snoozeReminder);
-export const useOpenStrugglingSheet = () => useReminderStoreBase((s) => s.openStrugglingSheet);
-export const useCloseStrugglingSheet = () => useReminderStoreBase((s) => s.closeStrugglingSheet);
 export const useShowSuccess = () => useReminderStoreBase((s) => s.showSuccess);
 export const useHideSuccess = () => useReminderStoreBase((s) => s.hideSuccess);
 export const useGetSnoozeCount = () => useReminderStoreBase((s) => s.getSnoozeCount);

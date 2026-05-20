@@ -9,7 +9,7 @@ import { TaskForm } from '../../components/task/TaskForm';
 import { useAddTask } from '../../store/taskStore';
 import { scheduleTaskReminder } from '../../services/notifications';
 import type { CreateTaskScreenProps } from '../../types/navigation';
-import type { TaskFormData } from '../../types/task';
+import { getDefaultFormData, type TaskFormData } from '../../types/task';
 
 export function CreateTaskScreen({ navigation }: CreateTaskScreenProps) {
   const addTask = useAddTask();
@@ -37,9 +37,9 @@ export function CreateTaskScreen({ navigation }: CreateTaskScreenProps) {
       </View>
 
       <TaskForm
+        initialData={getDefaultFormData()}
         onSubmit={handleSubmit}
         submitLabel="Create Task"
-        showWitnessPhotoOptionalHint
       />
     </SafeAreaView>
   );

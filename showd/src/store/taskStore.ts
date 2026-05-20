@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useShallow } from 'zustand/react/shallow';
-import type { Task, TaskEvent, TaskFormData } from '../types/task';
+import type { Task, TaskEvent, TaskFormData, TriggerType, DismissAction, NagInterval } from '../types/task';
 import { useRatingStoreBase } from './ratingStore';
+import { useOnboardingStore } from './onboardingStore';
+import { computeWeeklyStreak, computeLongestWeeklyStreak } from '../utils/dateUtils';
 
 interface TaskState {
   tasks: Task[];
@@ -54,6 +56,31 @@ function filterOutMissedEvent(events: TaskEvent[], taskId: string, today: string
   );
 }
 
+function migrateTaskSchema(
+  persistedState: unknown,
+  version: number,
+): { tasks: Task[]; events: TaskEvent[] } {
+  const state = (persistedState ?? {}) as { tasks?: any[]; events?: TaskEvent[] };
+
+  if (version < 1) {
+    const migratedTasks: Task[] = (state.tasks ?? []).map((task: any) => {
+      const { witnessName: _wn, witnessPhotoUri: _wp, ...rest } = task;
+      return {
+        ...rest,
+        triggerType: (rest.triggerType ?? 'fixed_time') as TriggerType,
+        firstUnlockWindow: rest.firstUnlockWindow ?? undefined,
+        dismissAction: (rest.dismissAction ?? 'swipe') as DismissAction,
+        nagInterval: (rest.nagInterval ?? 'off') as NagInterval,
+        locationNote: rest.locationNote ?? undefined,
+        weeklyGoal: rest.weeklyGoal ?? 7,
+      } as Task;
+    });
+    return { tasks: migratedTasks, events: state.events ?? [] };
+  }
+
+  return { tasks: (state.tasks ?? []) as Task[], events: state.events ?? [] };
+}
+
 function stripLegacyMockData(tasks: Task[], events: TaskEvent[]): { tasks: Task[]; events: TaskEvent[] } {
   const filteredTasks = tasks.filter((t) => !t.id.startsWith(LEGACY_MOCK_PREFIX));
   const filteredEvents = events.filter(
@@ -71,6 +98,7 @@ const useTaskStoreBase = create<TaskState>()(
 
       addTask: (formData) => {
         const now = new Date().toISOString();
+        const onboarding = useOnboardingStore.getState();
         const newTask: Task = {
           id: generateUUID(),
           userId: LOCAL_USER_ID,
@@ -78,16 +106,20 @@ const useTaskStoreBase = create<TaskState>()(
           description: formData.description || undefined,
           category: formData.category!,
           reminderTime: formData.reminderTime,
-          witnessName: formData.witnessName || undefined,
-          witnessPhotoUri: formData.witnessPhotoUri || undefined,
           frequency: formData.frequency,
           frequencyDays: formData.frequencyDays.length > 0 ? formData.frequencyDays : undefined,
           customIntervalDays: formData.frequency === 'custom' ? formData.customIntervalDays : undefined,
           oneTimeDate: formData.frequency === 'once' ? formData.oneTimeDate : undefined,
-          snoozeLimit: formData.snoozeLimit,
+          snoozeLimit: formData.snoozeLimit ?? onboarding.defaultSnoozeLimit,
           durationMinutes: formData.durationMinutes ?? undefined,
           requirePhotoProof: formData.requirePhotoProof,
           reminderSoundId: formData.reminderSoundId ?? undefined,
+          triggerType: formData.triggerType,
+          firstUnlockWindow: formData.firstUnlockWindow ?? undefined,
+          dismissAction: formData.dismissAction,
+          nagInterval: formData.nagInterval,
+          locationNote: formData.locationNote.trim() || undefined,
+          weeklyGoal: formData.weeklyGoal,
           isActive: true,
           isPaused: false,
           currentStreak: 0,
@@ -143,14 +175,6 @@ const useTaskStoreBase = create<TaskState>()(
         );
         if (alreadyDone) return 0;
 
-        const task = get().tasks.find((t) => t.id === taskId);
-
-        const hadPrematureMiss = hasPrematureMissedEvent(get().events, taskId, today);
-        const baseStreak = hadPrematureMiss
-          ? task?.longestStreak || 0
-          : task?.currentStreak || 0;
-        const newStreak = baseStreak + 1;
-
         const event: TaskEvent = {
           id: generateUUID(),
           taskId,
@@ -164,22 +188,27 @@ const useTaskStoreBase = create<TaskState>()(
 
         set((state) => ({
           events: [...filterOutMissedEvent(state.events, taskId, today), event],
+        }));
+
+        const updatedState = get();
+        const task = updatedState.tasks.find((t) => t.id === taskId);
+        if (!task) return 0;
+
+        const newCurrentStreak = computeWeeklyStreak(updatedState.events, task);
+        const computedLongest = computeLongestWeeklyStreak(updatedState.events, task);
+        const newLongestStreak = Math.max(computedLongest, task.longestStreak, newCurrentStreak);
+
+        set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === taskId
-              ? {
-                ...t,
-                currentStreak: newStreak,
-                longestStreak: Math.max(t.longestStreak, newStreak),
-                updatedAt: now,
-              }
+              ? { ...t, currentStreak: newCurrentStreak, longestStreak: newLongestStreak, updatedAt: now }
               : t
           ),
         }));
 
-        // Track completion for rating prompt triggers
         useRatingStoreBase.getState().recordTaskCompletion();
 
-        return newStreak;
+        return newCurrentStreak;
       },
 
       undoTaskCompletion: (taskId) => {
@@ -195,13 +224,22 @@ const useTaskStoreBase = create<TaskState>()(
           events: state.events.filter(
             (e) => !(e.taskId === taskId && e.scheduledFor.startsWith(today) && e.status === 'done'),
           ),
+        }));
+
+        const updatedState = get();
+        const task = updatedState.tasks.find((t) => t.id === taskId);
+        if (!task) return false;
+
+        const newCurrentStreak = computeWeeklyStreak(updatedState.events, task);
+        const newLongestStreak = Math.max(
+          computeLongestWeeklyStreak(updatedState.events, task),
+          task.longestStreak,
+        );
+
+        set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === taskId
-              ? {
-                ...t,
-                currentStreak: Math.max(0, t.currentStreak - 1),
-                updatedAt: now,
-              }
+              ? { ...t, currentStreak: newCurrentStreak, longestStreak: newLongestStreak, updatedAt: now }
               : t,
           ),
         }));
@@ -253,12 +291,8 @@ const useTaskStoreBase = create<TaskState>()(
         };
         set((state) => ({
           events: [...filterOutMissedEvent(state.events, taskId, today), event],
-          tasks: state.tasks.map((t) =>
-            t.id === taskId ? { ...t, currentStreak: 0, updatedAt: now } : t
-          ),
         }));
 
-        // Track struggle for rating prompt triggers
         useRatingStoreBase.getState().recordStruggle();
       },
 
@@ -285,9 +319,6 @@ const useTaskStoreBase = create<TaskState>()(
         };
         set((state) => ({
           events: [...state.events, event],
-          tasks: state.tasks.map((t) =>
-            t.id === taskId ? { ...t, currentStreak: 0, updatedAt: now } : t
-          ),
         }));
       },
 
@@ -312,6 +343,8 @@ const useTaskStoreBase = create<TaskState>()(
     {
       name: 'showd-tasks',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      migrate: (persistedState, version) => migrateTaskSchema(persistedState, version),
       partialize: (state) => ({
         tasks: state.tasks,
         events: state.events,

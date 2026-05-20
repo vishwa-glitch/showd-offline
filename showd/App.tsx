@@ -26,14 +26,19 @@ import {
   useTriggerReminder,
   useActiveTaskId,
   useDismissReminder,
-  useOpenStrugglingSheet,
 } from './src/store/reminderStore';
 import {
   useTasks,
+  useEvents,
   useCompleteTask,
   useSnoozeTask,
   useGetTaskById,
+  useStruggleTask,
 } from './src/store/taskStore';
+import {
+  syncFirstUnlockTasks,
+  consumePendingFirstUnlockTaskId,
+} from './src/services/firstUnlockSync';
 import { useMissedTaskChecker } from './src/hooks/useMissedTaskChecker';
 import { useTimerTick } from './src/hooks/useTimerTick';
 import { useAbandonedTimerDetector } from './src/hooks/useAbandonedTimerDetector';
@@ -64,11 +69,12 @@ export default function App() {
   const triggerReminder = useTriggerReminder();
   const activeReminderTaskId = useActiveTaskId();
   const dismissReminder = useDismissReminder();
-  const openStrugglingSheet = useOpenStrugglingSheet();
   const completeTask = useCompleteTask();
   const snoozeTask = useSnoozeTask();
+  const struggleTask = useStruggleTask();
   const getTaskById = useGetTaskById();
   const tasks = useTasks();
+  const events = useEvents();
   const refreshPermissions = useRefreshAllPermissions();
   const recordAppOpen = useRecordAppOpen();
   const appStateRef = useRef(AppState.currentState);
@@ -99,10 +105,10 @@ export default function App() {
     if (!task) return taskId;
 
     if (action === 'open') {
-      // User tapped "Struggling Today" on native overlay.
-      // Re-open reminder context and immediately show struggling sheet.
-      triggerReminder(taskId);
-      openStrugglingSheet();
+      struggleTask(taskId, 'not_today', undefined);
+      await cancelActiveReminder(taskId).catch(() => {});
+      await scheduleNextRegularReminder(task).catch(() => {});
+      if (activeReminderTaskId === taskId) dismissReminder();
       return taskId;
     }
 
@@ -127,8 +133,7 @@ export default function App() {
     return null;
   }, [
     getTaskById,
-    triggerReminder,
-    openStrugglingSheet,
+    struggleTask,
     completeTask,
     activeReminderTaskId,
     dismissReminder,
@@ -181,6 +186,23 @@ export default function App() {
     hasReconciledRef.current = true;
     reconcileNotifications(tasks).catch(() => {});
   }, [tasks]);
+
+  // Sync first-unlock tasks to native SharedPreferences on every change
+  useEffect(() => {
+    syncFirstUnlockTasks(tasks, events).catch(() => {});
+  }, [tasks, events]);
+
+  // Cold-start: check whether the native receiver fired a first-unlock reminder
+  // while the app was killed and trigger the reminder UI if so
+  useEffect(() => {
+    let cancelled = false;
+    consumePendingFirstUnlockTaskId().then((taskId) => {
+      if (cancelled || !taskId) return;
+      console.log('[FirstUnlock] cold-start: found pending taskId', taskId, '— triggering reminder');
+      triggerReminder(taskId);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [triggerReminder]);
 
   // Hide splash screen once fonts are loaded (or if there's an error)
   useEffect(() => {

@@ -18,6 +18,11 @@ import { useTasks, useEvents, useCompleteTask, useDeleteTask } from '../../store
 import { cancelTaskReminder } from '../../services/notifications';
 import type { TaskDetailScreenProps } from '../../types/navigation';
 import { formatReminderTime } from '../../utils/reminderTime';
+import {
+  computeWeeklyStreak,
+  computeLongestWeeklyStreak,
+  getCurrentWeekProgress,
+} from '../../utils/dateUtils';
 
 function formatFrequency(frequency: string, days?: number[]): string {
   switch (frequency) {
@@ -141,19 +146,34 @@ export function TaskDetailScreen({ navigation, route }: TaskDetailScreenProps) {
         </Card>
 
         {/* Streak */}
-        <Card style={styles.streakCard}>
-          <View style={styles.streakRow}>
-            <View style={styles.streakItem}>
-              <Text style={styles.streakNumber}>{task.currentStreak}</Text>
-              <Text style={styles.streakLabel}>Current streak</Text>
-            </View>
-            <View style={styles.streakDivider} />
-            <View style={styles.streakItem}>
-              <Text style={styles.streakNumber}>{task.longestStreak}</Text>
-              <Text style={styles.streakLabel}>Longest streak</Text>
-            </View>
-          </View>
-        </Card>
+        {(() => {
+          const currentStreak = computeWeeklyStreak(allEvents, task);
+          const longestStreak = computeLongestWeeklyStreak(allEvents, task);
+          const weekProgress = task.frequency === 'daily'
+            ? getCurrentWeekProgress(allEvents, task)
+            : null;
+          return (
+            <Card style={styles.streakCard}>
+              <View style={styles.streakRow}>
+                <View style={styles.streakItem}>
+                  <Text style={styles.streakNumber}>{currentStreak}</Text>
+                  <Text style={styles.streakLabel}>Current streak (wk)</Text>
+                </View>
+                <View style={styles.streakDivider} />
+                <View style={styles.streakItem}>
+                  <Text style={styles.streakNumber}>{longestStreak}</Text>
+                  <Text style={styles.streakLabel}>Longest streak (wk)</Text>
+                </View>
+              </View>
+              {weekProgress !== null && (
+                <Text style={styles.weekProgress}>
+                  This week: {weekProgress.completed} of {weekProgress.goal}{' '}
+                  {weekProgress.goal === 1 ? 'day' : 'days'}
+                </Text>
+              )}
+            </Card>
+          );
+        })()}
 
         {/* Actions */}
         <View style={styles.actions}>
@@ -326,6 +346,15 @@ const styles = StyleSheet.create({
     width: 1,
     backgroundColor: Colors.border,
     marginVertical: Spacing.xs,
+  },
+  weekProgress: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   actions: {
     marginBottom: Spacing.xl,

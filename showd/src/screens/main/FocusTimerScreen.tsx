@@ -29,9 +29,10 @@ import {
   usePauseTimer,
   useResumeTimer,
   useCompleteTimer,
+  useAbandonTimer,
 } from '../../store/timerStore';
-import { useGetTaskById, useCompleteTask } from '../../store/taskStore';
-import { useOpenStrugglingSheet, useShowSuccess } from '../../store/reminderStore';
+import { useGetTaskById, useCompleteTask, useStruggleTask } from '../../store/taskStore';
+import { useShowSuccess } from '../../store/reminderStore';
 import type { FocusTimerScreenProps } from '../../types/navigation';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -48,9 +49,10 @@ export function FocusTimerScreen({ navigation, route }: FocusTimerScreenProps) {
   const pauseTimer = usePauseTimer();
   const resumeTimer = useResumeTimer();
   const completeTimerAction = useCompleteTimer();
+  const abandonTimer = useAbandonTimer();
   const getTaskById = useGetTaskById();
   const completeTask = useCompleteTask();
-  const openStrugglingSheet = useOpenStrugglingSheet();
+  const struggleTask = useStruggleTask();
   const showSuccess = useShowSuccess();
 
   const task = activeTaskId ? getTaskById(activeTaskId) : null;
@@ -90,11 +92,13 @@ export function FocusTimerScreen({ navigation, route }: FocusTimerScreenProps) {
     navigation.goBack();
   }, [task, completeTask, showSuccess, completeTimerAction, navigation]);
 
-  const handleStruggling = useCallback(() => {
-    pauseTimer();
+  const handleNotToday = useCallback(() => {
+    if (!task) return;
+    struggleTask(task.id, 'not_today', undefined);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    openStrugglingSheet();
-  }, [pauseTimer, openStrugglingSheet]);
+    abandonTimer();
+    navigation.goBack();
+  }, [task, struggleTask, abandonTimer, navigation]);
 
   if (!task) return null;
 
@@ -195,9 +199,8 @@ export function FocusTimerScreen({ navigation, route }: FocusTimerScreenProps) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity onPress={handleStruggling} style={styles.strugglingLink}>
-          <Feather name="cloud" size={16} color={Colors.struggling} />
-          <Text style={styles.strugglingText}>Struggling</Text>
+        <TouchableOpacity onPress={handleNotToday} style={styles.notTodayLink}>
+          <Text style={styles.notTodayText}>Not today</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -293,15 +296,15 @@ const styles = StyleSheet.create({
     ...Typography.button,
     color: '#FFFFFF',
   },
-  strugglingLink: {
+  notTodayLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
   },
-  strugglingText: {
+  notTodayText: {
     fontFamily: FontFamily.medium,
     fontSize: 14,
-    color: Colors.struggling,
+    color: 'rgba(255, 255, 255, 0.62)',
   },
 });

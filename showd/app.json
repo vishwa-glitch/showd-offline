@@ -2,7 +2,7 @@
   "expo": {
     "name": "Showd",
     "slug": "showd",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,7 @@
     },
     "android": {
       "package": "com.showd.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#1A1A1A"
@@ -54,6 +54,8 @@
         }
       ],
       "expo-audio",
+      "./plugins/withBuildConfig.js",
+      "./plugins/withFirstUnlock.js",
       "./plugins/withNotifee.js",
       "expo-asset"
     ],

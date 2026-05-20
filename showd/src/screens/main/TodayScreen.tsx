@@ -96,8 +96,6 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
     );
   };
 
-  const maxStreak = tasks.reduce((max, t) => Math.max(max, t.currentStreak), 0);
-
   const navigateToCreate = () => {
     navigation.navigate('CreateTask');
   };
@@ -152,7 +150,6 @@ export function TodayScreen({ navigation }: TodayScreenProps) {
             <QuickStatsRow
               completedToday={completedCount}
               totalToday={tasks.length}
-              currentStreak={maxStreak}
             />
           }
           ListHeaderComponentStyle={styles.statsRow}

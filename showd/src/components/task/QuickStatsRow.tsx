@@ -4,20 +4,25 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../utils/colors';
 import { Typography } from '../../utils/typography';
 import { Spacing, BorderRadius, Shadows } from '../../utils/spacing';
+import { useTasks, useEvents } from '../../store/taskStore';
+import { computeLongestWeeklyStreak } from '../../utils/dateUtils';
 
 interface QuickStatsRowProps {
   completedToday: number;
   totalToday: number;
-  currentStreak: number;
 }
 
-export function QuickStatsRow({
-  completedToday,
-  totalToday,
-  currentStreak,
-}: QuickStatsRowProps) {
+export function QuickStatsRow({ completedToday, totalToday }: QuickStatsRowProps) {
+  const tasks = useTasks();
+  const events = useEvents();
+
   const completionRate =
     totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
+
+  const bestStreak = tasks.reduce((max, task) => {
+    const streak = computeLongestWeeklyStreak(events, task);
+    return streak > max ? streak : max;
+  }, 0);
 
   return (
     <View style={styles.container}>
@@ -33,8 +38,8 @@ export function QuickStatsRow({
 
       <View style={styles.stat}>
         <Feather name="zap" size={16} color={Colors.snooze} />
-        <Text style={styles.statValue}>{currentStreak}</Text>
-        <Text style={styles.statLabel}>Day streak</Text>
+        <Text style={styles.statValue}>{bestStreak}</Text>
+        <Text style={styles.statLabel}>Best streak (wk)</Text>
       </View>
 
       <View style={styles.divider} />

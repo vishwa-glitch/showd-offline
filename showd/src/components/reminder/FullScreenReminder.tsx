@@ -1,318 +1,421 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   BackHandler,
-  Platform,
   Dimensions,
-  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { Accelerometer } from 'expo-sensors';
 import * as Haptics from 'expo-haptics';
-import { playSound, stopSound } from '../../services/soundPlayer';
-import { getSelectedSoundId } from '../../store/soundStore';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  FadeInDown,
-  Easing,
-} from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../utils/colors';
-import { Typography, FontFamily } from '../../utils/typography';
-import { Spacing, BorderRadius } from '../../utils/spacing';
-import { TASK_CATEGORIES } from '../../types/task';
-import type { Task } from '../../types/task';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Button } from '../ui/Button';
 import type { RootStackParamList } from '../../types/navigation';
-import {
-  usePendingReminders,
-  useDismissReminder,
-  useSnoozeReminder,
-  useOpenStrugglingSheet,
-  useGetSnoozeCount,
-  useShowSuccess,
-} from '../../store/reminderStore';
-import { useGetTaskById, useCompleteTask, useSnoozeTask, useAddEvent } from '../../store/taskStore';
-import { useStartTimer } from '../../store/timerStore';
-import {
-  cancelActiveReminder,
-  rescheduleAfterSnooze,
-  scheduleNextRegularReminder,
-} from '../../services/notifications';
+import type { NagInterval, Task } from '../../types/task';
+import { useActiveTaskId, useDismissReminder, useGetSnoozeCount, useShowSuccess, useSnoozeReminder } from '../../store/reminderStore';
+import { useAddEvent, useCompleteTask, useEvents, useSnoozeTask, useStruggleTask, useTaskStore } from '../../store/taskStore';
+import { useActiveTimerTaskId, useStartTimer } from '../../store/timerStore';
+import { getSelectedSoundId } from '../../store/soundStore';
+import { playSound, stopSound } from '../../services/soundPlayer';
+import { cancelActiveReminder, rescheduleAfterSnooze, scheduleNextRegularReminder } from '../../services/notifications';
+import { getLastDoneTime } from '../../utils/dateUtils';
+import { Colors } from '../../utils/colors';
+import { Typography } from '../../utils/typography';
+import { BorderRadius, Spacing } from '../../utils/spacing';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-interface FullScreenReminderProps {
-  task: Task;
+const SHAKE_THRESHOLD = 2.4;
+const SHAKE_DEBOUNCE_MS = 300;
+const SHAKES_REQUIRED = 5;
+
+type Phase = 'primary' | 'math' | 'shake';
+
+function nagIntervalToMs(interval: NagInterval): number | null {
+  switch (interval) {
+    case '3m':
+      return 3 * 60 * 1000;
+    case '5m':
+      return 5 * 60 * 1000;
+    case '10m':
+      return 10 * 60 * 1000;
+    case 'off':
+    default:
+      return null;
+  }
 }
 
-export function FullScreenReminder({ task }: FullScreenReminderProps) {
+function generateMathProblem(): { question: string; answer: number } {
+  const ops = ['+', '-', 'x'] as const;
+  const op = ops[Math.floor(Math.random() * ops.length)];
+
+  if (op === '+') {
+    const a = 5 + Math.floor(Math.random() * 15);
+    const b = 5 + Math.floor(Math.random() * 15);
+    return { question: `${a} + ${b}`, answer: a + b };
+  }
+
+  if (op === '-') {
+    const a = 15 + Math.floor(Math.random() * 25);
+    const b = 1 + Math.floor(Math.random() * (a - 1));
+    return { question: `${a} - ${b}`, answer: a - b };
+  }
+
+  const a = 2 + Math.floor(Math.random() * 8);
+  const b = 2 + Math.floor(Math.random() * 8);
+  return { question: `${a} x ${b}`, answer: a * b };
+}
+
+export function FullScreenReminder() {
   const insets = useSafeAreaInsets();
-  const [isHandlingAction, setIsHandlingAction] = useState(false);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const pendingReminders = usePendingReminders();
-  const dismissReminder = useDismissReminder();
-  const snoozeReminder = useSnoozeReminder();
-  const openStrugglingSheet = useOpenStrugglingSheet();
-  const getSnoozeCount = useGetSnoozeCount();
-  const showSuccess = useShowSuccess();
+  const activeTaskId = useActiveTaskId();
+  const task = useTaskStore((s) => s.tasks.find((t) => t.id === activeTaskId));
+  const events = useEvents();
+  const activeTimerTaskId = useActiveTimerTaskId();
   const completeTask = useCompleteTask();
   const snoozeTask = useSnoozeTask();
+  const struggleTask = useStruggleTask();
   const addEvent = useAddEvent();
   const startTimer = useStartTimer();
+  const dismissReminder = useDismissReminder();
+  const snoozeReminder = useSnoozeReminder();
+  const showSuccess = useShowSuccess();
+  const getSnoozeCount = useGetSnoozeCount();
 
-  const isTimedTask = (task.durationMinutes ?? 0) > 0;
+  const [phase, setPhase] = useState<Phase>('primary');
+  const [isHandlingAction, setIsHandlingAction] = useState(false);
 
-  const snoozeCount = getSnoozeCount(task.id);
-  const snoozesRemaining = task.snoozeLimit - snoozeCount;
-  const totalReminders = pendingReminders.length + 1;
-
-  // Pulse animation for circle
-  const pulseScale = useSharedValue(1);
-
-  useEffect(() => {
-    pulseScale.value = withRepeat(
-      withTiming(1.08, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-  }, [pulseScale]);
-
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-  }));
-
-  // Intercept Android back button
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const handler = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => handler.remove();
   }, []);
 
-  // Play selected reminder sound on loop
   useEffect(() => {
-    const soundId = getSelectedSoundId();
-    playSound(soundId, true);
+    setPhase('primary');
+  }, [task?.id]);
+
+  useEffect(() => {
+    if (!task) return;
+
+    playSound(task.reminderSoundId ?? getSelectedSoundId(), true).catch(() => {});
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+
     return () => {
-      stopSound();
+      stopSound().catch(() => {});
     };
-  }, []);
+  }, [task?.id, task?.reminderSoundId]);
 
-  // Extra Android haptic pulses while reminder is visible in-app.
-  // This complements notification-channel vibration for foreground reminders.
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (!task) return;
+    if (phase !== 'primary') return;
 
-    const pulse = () => {
+    const intervalMs = nagIntervalToMs(task.nagInterval);
+    if (intervalMs === null) return;
+    if (activeTimerTaskId === task.id) return;
+
+    const id = setInterval(() => {
+      playSound(task.reminderSoundId ?? getSelectedSoundId(), false).catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-    };
+    }, intervalMs);
 
-    pulse();
-    const intervalId = setInterval(pulse, 3000);
+    return () => clearInterval(id);
+  }, [activeTimerTaskId, phase, task]);
 
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [task.id]);
+  if (!task) return null;
 
-  const category = TASK_CATEGORIES.find((c) => c.key === task.category);
-  const categoryIcon = (category?.icon || 'circle') as keyof typeof Feather.glyphMap;
+  const lastDone = getLastDoneTime(events, task.id);
+  const locationNote = task.locationNote?.trim();
 
-  const witnessName = task.witnessName?.trim() || '';
-  const taskDescription = task.description?.trim() || '';
-  const motivationLine = witnessName
-    ? `${witnessName} is counting on you`
-    : 'Time to show up for yourself';
-
-  const witnessInitials = (() => {
-    if (!witnessName) return '';
-    const parts = witnessName.split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return '';
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  })();
-
-  const handleDone = useCallback(async () => {
+  const completeOrStart = () => {
     if (isHandlingAction) return;
     setIsHandlingAction(true);
-    const streak = completeTask(task.id);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showSuccess(streak);
-    cancelActiveReminder(task.id).catch(() => {});
-    scheduleNextRegularReminder(task).catch(() => {});
-    dismissReminder();
-    setIsHandlingAction(false);
-  }, [task, completeTask, showSuccess, dismissReminder, isHandlingAction]);
 
-  const handleStart = useCallback(() => {
-    if (isHandlingAction) return;
-    setIsHandlingAction(true);
-    // Create an in_progress event
-    const now = new Date().toISOString();
-    const eventId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    addEvent({
-      taskId: task.id,
-      userId: task.userId,
-      scheduledFor: now,
-      status: 'in_progress',
-      respondedAt: now,
-      snoozeCount: 0,
-      startedAt: now,
-      originalDurationMinutes: task.durationMinutes,
-    });
-    // Start the global timer
-    startTimer(task.id, eventId, task.durationMinutes!);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    cancelActiveReminder(task.id).catch(() => {});
-    scheduleNextRegularReminder(task).catch(() => {});
-    dismissReminder();
-    // Navigate to focus timer screen
-    navigation.navigate('FocusTimer', { taskId: task.id, taskEventId: eventId });
-    setIsHandlingAction(false);
-  }, [task, addEvent, startTimer, dismissReminder, navigation, isHandlingAction]);
-
-  const handleSnooze = useCallback(async () => {
-    if (isHandlingAction) return;
-    setIsHandlingAction(true);
-    const success = snoozeTask(task.id);
-    if (!success) {
+    if (task.durationMinutes) {
+      const now = new Date().toISOString();
+      const eventId = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      addEvent({
+        taskId: task.id,
+        userId: task.userId,
+        scheduledFor: now,
+        status: 'in_progress',
+        respondedAt: now,
+        snoozeCount: 0,
+        startedAt: now,
+        originalDurationMinutes: task.durationMinutes,
+      });
+      startTimer(task.id, eventId, task.durationMinutes);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      cancelActiveReminder(task.id).catch(() => {});
+      scheduleNextRegularReminder(task).catch(() => {});
+      stopSound().catch(() => {});
+      dismissReminder();
+      navigation.navigate('FocusTimer', { taskId: task.id, taskEventId: eventId });
       setIsHandlingAction(false);
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    snoozeReminder(task.id);
-    await rescheduleAfterSnooze(task).catch(() => { });
-    setIsHandlingAction(false);
-  }, [task, snoozeTask, snoozeReminder, isHandlingAction]);
 
-  const handleStruggling = useCallback(() => {
+    const streak = completeTask(task.id);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    cancelActiveReminder(task.id).catch(() => {});
+    scheduleNextRegularReminder(task).catch(() => {});
+    stopSound().catch(() => {});
+    dismissReminder();
+    showSuccess(streak);
+    setIsHandlingAction(false);
+  };
+
+  const handlePrimary = () => {
+    if (task.dismissAction === 'math') {
+      setPhase('math');
+      return;
+    }
+
+    if (task.dismissAction === 'shake') {
+      setPhase('shake');
+      return;
+    }
+
+    completeOrStart();
+  };
+
+  const handleSnooze = () => {
     if (isHandlingAction) return;
     setIsHandlingAction(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    openStrugglingSheet();
-    cancelActiveReminder(task.id).catch(() => {});
+
+    const ok = snoozeTask(task.id);
+    if (!ok) {
+      setIsHandlingAction(false);
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    snoozeReminder(task.id);
+    rescheduleAfterSnooze(task).catch(() => {});
+    stopSound().catch(() => {});
     setIsHandlingAction(false);
-  }, [openStrugglingSheet, task.id, isHandlingAction]);
+  };
+
+  const handleNotToday = () => {
+    if (isHandlingAction) return;
+    setIsHandlingAction(true);
+
+    struggleTask(task.id, 'not_today', undefined);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    cancelActiveReminder(task.id).catch(() => {});
+    scheduleNextRegularReminder(task).catch(() => {});
+    stopSound().catch(() => {});
+    dismissReminder();
+    setIsHandlingAction(false);
+  };
 
   return (
     <View
       style={[
         styles.container,
         {
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom,
+          paddingTop: insets.top + Spacing.xl,
+          paddingBottom: insets.bottom + Spacing.xl,
         },
       ]}
     >
-      {/* Category icon */}
-      <View style={styles.categoryIcon}>
-        <Feather name={categoryIcon} size={48} color="rgba(255,255,255,0.9)" />
-      </View>
+      <View style={styles.taskInfo}>
+        <View style={styles.iconCircle}>
+          <Feather name="bell" size={34} color="rgba(255,255,255,0.84)" />
+        </View>
 
-      {/* Animated circle */}
-      <Animated.View style={[styles.motivationCircle, pulseStyle]}>
-        {task.witnessPhotoUri ? (
-          <Image source={{ uri: task.witnessPhotoUri }} style={styles.witnessPhoto} />
-        ) : witnessInitials ? (
-          <Text style={styles.witnessInitials}>{witnessInitials}</Text>
-        ) : (
-          <Feather name="user" size={40} color="rgba(255,255,255,0.7)" />
-        )}
-      </Animated.View>
-
-      {/* Task name */}
-      <Text style={styles.taskName} numberOfLines={3}>
-        {task.name}
-      </Text>
-
-      {/* Motivation line */}
-      <Text style={[styles.motivationLine, taskDescription ? styles.motivationLineCompact : null]}>
-        {motivationLine}
-      </Text>
-
-      {/* Task description */}
-      {taskDescription ? (
-        <Text style={styles.taskDescription} numberOfLines={4}>
-          {taskDescription}
+        <Text style={styles.taskName} numberOfLines={3}>
+          {task.name}
         </Text>
-      ) : null}
 
-      {/* Snooze count indicator */}
-      {snoozeCount > 0 && (
-        <Text style={styles.snoozeIndicator}>
-          Snooze {snoozeCount} of {task.snoozeLimit} used
-        </Text>
-      )}
-
-      {/* Queue indicator */}
-      {totalReminders > 1 && (
-        <Text style={styles.queueIndicator}>
-          1 of {totalReminders} reminders
-        </Text>
-      )}
-
-      {/* Action buttons */}
-      <View style={styles.buttonsContainer}>
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          {isTimedTask ? (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.startButton]}
-              onPress={handleStart}
-              activeOpacity={0.8}
-            >
-              <Feather name="play" size={22} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Start ({task.durationMinutes}m)</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.doneButton]}
-              onPress={handleDone}
-              activeOpacity={0.8}
-            >
-              <Feather name="check" size={22} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Done</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-
-        {snoozesRemaining > 0 && (
-          <Animated.View entering={FadeInDown.delay(200).springify()}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.snoozeButton]}
-              onPress={handleSnooze}
-              activeOpacity={0.8}
-            >
-              <Feather name="clock" size={22} color="#FFFFFF" />
-              <Text style={styles.buttonText}>
-                Snooze 15min{snoozeCount > 0 ? ` (${snoozesRemaining} left)` : ''}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
+        {lastDone && (
+          <Text style={styles.lastDone}>Last done: {lastDone}</Text>
         )}
 
-        <Animated.View entering={FadeInDown.delay(snoozesRemaining > 0 ? 300 : 200).springify()}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.strugglingButton]}
-            onPress={handleStruggling}
-            activeOpacity={0.8}
-          >
-            <Feather name="cloud" size={22} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Struggling Today</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        {locationNote && (
+          <View style={styles.locationRow}>
+            <Feather name="map-pin" size={16} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.locationText}>{locationNote}</Text>
+          </View>
+        )}
       </View>
 
-      {/* Showd branding */}
-      <Text style={[styles.branding, { bottom: Spacing['4xl'] + insets.bottom }]}>
-        Showd.
-      </Text>
+      <View style={styles.actions}>
+        {phase === 'primary' && (
+          <PrimaryActions
+            task={task}
+            snoozeCount={getSnoozeCount(task.id)}
+            onPrimary={handlePrimary}
+            onSnooze={handleSnooze}
+            onNotToday={handleNotToday}
+          />
+        )}
+        {phase === 'math' && (
+          <MathChallenge
+            onSolve={() => {
+              setPhase('primary');
+              completeOrStart();
+            }}
+            onCancel={() => setPhase('primary')}
+          />
+        )}
+        {phase === 'shake' && (
+          <ShakeChallenge
+            onComplete={() => {
+              setPhase('primary');
+              completeOrStart();
+            }}
+            onCancel={() => setPhase('primary')}
+          />
+        )}
+      </View>
     </View>
+  );
+}
+
+function PrimaryActions({
+  task,
+  snoozeCount,
+  onPrimary,
+  onSnooze,
+  onNotToday,
+}: {
+  task: Task;
+  snoozeCount: number;
+  onPrimary: () => void;
+  onSnooze: () => void;
+  onNotToday: () => void;
+}) {
+  const primaryLabel = task.durationMinutes
+    ? `Start (${task.durationMinutes}m)`
+    : 'Done';
+  const snoozesRemaining = task.snoozeLimit - snoozeCount;
+
+  return (
+    <>
+      <Button label={primaryLabel} onPress={onPrimary} variant="success" fullWidth />
+      {snoozesRemaining > 0 && (
+        <Button
+          label={`Snooze 15 min${snoozeCount > 0 ? ` (${snoozesRemaining} left)` : ''}`}
+          onPress={onSnooze}
+          variant="secondary"
+          fullWidth
+          textStyle={styles.secondaryButtonText}
+        />
+      )}
+      <TouchableOpacity onPress={onNotToday} style={styles.notTodayLink}>
+        <Text style={styles.notTodayText}>Not today</Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+function MathChallenge({
+  onSolve,
+  onCancel,
+}: {
+  onSolve: () => void;
+  onCancel: () => void;
+}) {
+  const [problem, setProblem] = useState(() => generateMathProblem());
+  const [answer, setAnswer] = useState('');
+  const [error, setError] = useState(false);
+
+  const submit = () => {
+    const n = parseInt(answer, 10);
+    if (Number.isNaN(n)) {
+      setError(true);
+      return;
+    }
+
+    if (n === problem.answer) {
+      onSolve();
+      return;
+    }
+
+    setError(true);
+    setTimeout(() => {
+      setError(false);
+      setProblem(generateMathProblem());
+      setAnswer('');
+    }, 800);
+  };
+
+  return (
+    <>
+      <Text style={styles.mathPrompt}>Solve to dismiss</Text>
+      <Text style={styles.mathQuestion}>{problem.question} = ?</Text>
+      <TextInput
+        style={[styles.mathInput, error && styles.mathInputError]}
+        value={answer}
+        onChangeText={setAnswer}
+        keyboardType="numeric"
+        autoFocus
+        onSubmitEditing={submit}
+        placeholderTextColor="rgba(255,255,255,0.35)"
+      />
+      {error && <Text style={styles.mathError}>Try again</Text>}
+      <Button label="Submit" onPress={submit} variant="success" fullWidth />
+      <TouchableOpacity onPress={onCancel} style={styles.notTodayLink}>
+        <Text style={styles.notTodayText}>Cancel</Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+function ShakeChallenge({
+  onComplete,
+  onCancel,
+}: {
+  onComplete: () => void;
+  onCancel: () => void;
+}) {
+  const [count, setCount] = useState(0);
+  const lastShakeAt = useRef(0);
+
+  useEffect(() => {
+    Accelerometer.setUpdateInterval(100);
+    const sub = Accelerometer.addListener(({ x, y, z }) => {
+      const magnitude = Math.sqrt(x * x + y * y + z * z);
+      if (magnitude < SHAKE_THRESHOLD) return;
+
+      const now = Date.now();
+      if (now - lastShakeAt.current < SHAKE_DEBOUNCE_MS) return;
+
+      lastShakeAt.current = now;
+      setCount((c) => c + 1);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    });
+
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (count >= SHAKES_REQUIRED) {
+      onComplete();
+    }
+  }, [count, onComplete]);
+
+  const progress = Math.min(count / SHAKES_REQUIRED, 1);
+
+  return (
+    <>
+      <Text style={styles.shakePrompt}>Shake to dismiss</Text>
+      <Text style={styles.shakeCount}>{count} / {SHAKES_REQUIRED}</Text>
+      <View style={styles.shakeBarTrack}>
+        <View style={[styles.shakeBarFill, { width: `${progress * 100}%` }]} />
+      </View>
+      <TouchableOpacity onPress={onCancel} style={styles.notTodayLink}>
+        <Text style={styles.notTodayText}>Cancel</Text>
+      </TouchableOpacity>
+    </>
   );
 }
 
@@ -324,102 +427,115 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
     backgroundColor: 'rgba(15, 10, 20, 0.95)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing['2xl'],
+    paddingHorizontal: Spacing.xl,
+    justifyContent: 'space-between',
     zIndex: 999,
   },
-  categoryIcon: {
-    marginBottom: Spacing.xl,
+  taskInfo: {
+    alignItems: 'center',
+    marginTop: Spacing['4xl'],
+    gap: Spacing.base,
   },
-  motivationCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(255, 77, 106, 0.3)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 77, 106, 0.6)',
+  iconCircle: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: 'rgba(255, 77, 106, 0.24)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 77, 106, 0.55)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing['2xl'],
-  },
-  witnessInitials: {
-    ...Typography.heading2,
-    color: 'rgba(255,255,255,0.95)',
-    fontFamily: FontFamily.bold,
-    letterSpacing: 1,
-  },
-  witnessPhoto: {
-    width: '100%',
-    height: '100%',
+    marginBottom: Spacing.md,
   },
   taskName: {
     ...Typography.reminderTask,
     color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: Spacing.md,
   },
-  motivationLine: {
-    ...Typography.reminderWitness,
-    color: 'rgba(255, 255, 255, 0.7)',
+  lastDone: {
+    ...Typography.bodySmall,
+    color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
-    marginBottom: Spacing.xl,
   },
-  motivationLineCompact: {
-    marginBottom: Spacing.md,
-  },
-  taskDescription: {
-    ...Typography.body,
-    color: 'rgba(255, 255, 255, 0.82)',
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.sm,
-  },
-  snoozeIndicator: {
-    ...Typography.caption,
-    color: Colors.snooze,
-    marginBottom: Spacing.sm,
-  },
-  queueIndicator: {
-    ...Typography.caption,
-    color: 'rgba(255, 255, 255, 0.5)',
-    marginBottom: Spacing.lg,
-  },
-  buttonsContainer: {
-    width: '100%',
-    marginTop: Spacing.xl,
-    gap: Spacing.md,
-  },
-  actionButton: {
+  locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 64,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.md,
-    width: '100%',
+    gap: Spacing.sm,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    borderRadius: BorderRadius.md,
+    maxWidth: '100%',
   },
-  doneButton: {
-    backgroundColor: Colors.success,
-  },
-  startButton: {
-    backgroundColor: Colors.inProgress,
-  },
-  snoozeButton: {
-    backgroundColor: Colors.snooze,
-  },
-  strugglingButton: {
-    backgroundColor: Colors.struggling,
-  },
-  buttonText: {
-    ...Typography.button,
+  locationText: {
+    ...Typography.body,
     color: '#FFFFFF',
-    fontSize: 18,
+    flexShrink: 1,
   },
-  branding: {
-    position: 'absolute',
-    fontFamily: FontFamily.bold,
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.1)',
+  actions: {
+    gap: Spacing.md,
+    paddingBottom: Spacing.xl,
+  },
+  secondaryButtonText: {
+    color: '#FFFFFF',
+  },
+  notTodayLink: {
+    alignSelf: 'center',
+    padding: Spacing.md,
+  },
+  notTodayText: {
+    ...Typography.body,
+    color: 'rgba(255,255,255,0.65)',
+  },
+  mathPrompt: {
+    ...Typography.bodySmall,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+  },
+  mathQuestion: {
+    ...Typography.heading1,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginVertical: Spacing.base,
+  },
+  mathInput: {
+    ...Typography.heading2,
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.base,
+    textAlign: 'center',
+    marginBottom: Spacing.base,
+  },
+  mathInputError: {
+    backgroundColor: 'rgba(255,0,0,0.2)',
+  },
+  mathError: {
+    ...Typography.caption,
+    color: '#ff8a8a',
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  shakePrompt: {
+    ...Typography.heading3,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  shakeCount: {
+    ...Typography.heading1,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginVertical: Spacing.base,
+  },
+  shakeBarTrack: {
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    marginBottom: Spacing.base,
+  },
+  shakeBarFill: {
+    height: '100%',
+    backgroundColor: Colors.success,
   },
 });

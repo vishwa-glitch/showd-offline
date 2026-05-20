@@ -27,15 +27,16 @@ import {
   useTimerTotalPausedSeconds,
   useTimerStartedAt,
   useCompleteTimer,
+  useAbandonTimer,
   useExtendTimer,
   useDismissPostTimer,
 } from '../../store/timerStore';
 import {
   useGetTaskById,
   useCompleteTask,
+  useStruggleTask,
 } from '../../store/taskStore';
 import {
-  useOpenStrugglingSheet,
   useShowSuccess,
 } from '../../store/reminderStore';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -52,10 +53,11 @@ export function PostTimerCompletion() {
   const activeEventId = useActiveTimerEventId();
   const activeTaskId = useActiveTimerTaskId();
   const completeTimer = useCompleteTimer();
+  const abandonTimer = useAbandonTimer();
   const extendTimer = useExtendTimer();
   const getTaskById = useGetTaskById();
   const completeTask = useCompleteTask();
-  const openStrugglingSheet = useOpenStrugglingSheet();
+  const struggleTask = useStruggleTask();
   const showSuccess = useShowSuccess();
 
   const task = completedTaskId ? getTaskById(completedTaskId) : null;
@@ -95,10 +97,12 @@ export function PostTimerCompletion() {
     }
   }, [extendTimer, activeTaskId, activeEventId, navigation]);
 
-  const handleStruggling = useCallback(() => {
+  const handleNotToday = useCallback(() => {
+    if (!task) return;
+    struggleTask(task.id, 'not_today', undefined);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    openStrugglingSheet();
-  }, [openStrugglingSheet]);
+    abandonTimer();
+  }, [task, struggleTask, abandonTimer]);
 
   return (
     <View
@@ -171,15 +175,14 @@ export function PostTimerCompletion() {
           <Text style={styles.noExtensions}>No more extensions available</Text>
         )}
 
-        {/* Struggling */}
+        {/* Not today */}
         <Animated.View entering={FadeInDown.delay(canExtend ? 400 : 300).springify()}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.strugglingButton]}
-            onPress={handleStruggling}
+            style={styles.notTodayLink}
+            onPress={handleNotToday}
             activeOpacity={0.8}
           >
-            <Feather name="cloud" size={22} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Struggling Today</Text>
+            <Text style={styles.notTodayText}>Not today</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -276,9 +279,6 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: 'rgba(255, 255, 255, 0.6)',
   },
-  strugglingButton: {
-    backgroundColor: Colors.struggling,
-  },
   buttonText: {
     ...Typography.button,
     color: '#FFFFFF',
@@ -288,6 +288,14 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: 'rgba(255, 255, 255, 0.4)',
     textAlign: 'center',
+  },
+  notTodayLink: {
+    alignSelf: 'center',
+    padding: Spacing.md,
+  },
+  notTodayText: {
+    ...Typography.body,
+    color: 'rgba(255, 255, 255, 0.62)',
   },
   branding: {
     position: 'absolute',

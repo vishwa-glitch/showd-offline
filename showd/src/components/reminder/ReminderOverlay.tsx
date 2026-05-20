@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   useActiveTaskId,
-  useShowStrugglingSheet,
   useShowSuccessAnimation,
 } from '../../store/reminderStore';
-import { useShowPostTimerCompletion, useActiveTimerTaskId } from '../../store/timerStore';
+import { useShowPostTimerCompletion } from '../../store/timerStore';
 import { useGetTaskById } from '../../store/taskStore';
 import {
   useShouldShowRatingPrompt,
@@ -13,15 +12,12 @@ import {
 } from '../../store/ratingStore';
 import type { RatingTriggerResult } from '../../store/ratingStore';
 import { FullScreenReminder } from './FullScreenReminder';
-import { StrugglingSheet } from './StrugglingSheet';
 import { SuccessAnimation } from './SuccessAnimation';
 import { PostTimerCompletion } from '../timer/PostTimerCompletion';
 import { RatingPromptSheet } from '../ui/RatingPromptSheet';
 
 export function ReminderOverlay() {
   const activeTaskId = useActiveTaskId();
-  const activeTimerTaskId = useActiveTimerTaskId();
-  const showStrugglingSheet = useShowStrugglingSheet();
   const showSuccessAnimation = useShowSuccessAnimation();
   const showPostTimerCompletion = useShowPostTimerCompletion();
   const getTaskById = useGetTaskById();
@@ -45,8 +41,6 @@ export function ReminderOverlay() {
   }, [showSuccessAnimation, shouldShowRatingPrompt, markRatingPromptShown]);
 
   const activeTask = activeTaskId ? getTaskById(activeTaskId) : null;
-  // StrugglingSheet can be triggered from either a reminder or the focus timer
-  const hasStrugglingContext = activeTask || activeTimerTaskId;
 
   const handleRate = () => {
     markAppRated();
@@ -59,8 +53,7 @@ export function ReminderOverlay() {
 
   return (
     <>
-      {activeTask && <FullScreenReminder task={activeTask} />}
-      {hasStrugglingContext && showStrugglingSheet && <StrugglingSheet />}
+      {activeTask && <FullScreenReminder />}
       {showSuccessAnimation && <SuccessAnimation />}
       {showPostTimerCompletion && <PostTimerCompletion />}
       {ratingTrigger && (
